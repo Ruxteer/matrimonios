@@ -3,6 +3,10 @@ import { redirect } from "next/navigation";
 import { listarEventos, nombreEvento } from "@/lib/eventos";
 import { PRODUCTO } from "@/lib/config";
 
+// La lista de matrimonios cambia mientras el sitio está en marcha: hay que
+// leerla en cada visita y no dejarla fija al compilar.
+export const dynamic = "force-dynamic";
+
 // Portada del producto. Con un solo matrimonio cargado entra directo a él;
 // con varios, muestra la lista (cada uno tiene su propia URL y su propio QR).
 export default function Portada() {
