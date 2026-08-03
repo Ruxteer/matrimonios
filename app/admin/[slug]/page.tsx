@@ -51,6 +51,12 @@ export default function AdminEvento() {
     load();
   }, [load]);
 
+  async function borrarFoto(id: number) {
+    if (!confirm("¿Eliminar esta foto? No se puede deshacer.")) return;
+    const res = await fetch(`/api/eventos/${slug}/photos/${id}`, { method: "DELETE" });
+    if (res.ok) setFotos((fs) => fs.filter((f) => f.id !== id));
+  }
+
   if (authed === false) return <Login onOk={load} />;
   if (authed === null) return <p className="p-6 text-neutral-500">Cargando…</p>;
   if (!existe) {
@@ -140,21 +146,30 @@ export default function AdminEvento() {
             <p className="col-span-full text-neutral-400">Aún no suben fotos.</p>
           )}
           {fotos.map((f) => (
-            <a
-              key={f.id}
-              href={urlArchivo(f.archivo)}
-              target="_blank"
-              rel="noreferrer"
-              className="block overflow-hidden rounded-xl border border-neutral-200"
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={urlArchivo(f.archivo)}
-                alt={`Foto ${f.id}`}
-                className="aspect-square w-full object-cover"
-                loading="lazy"
-              />
-            </a>
+            <div key={f.id} className="group relative">
+              <a
+                href={urlArchivo(f.archivo)}
+                target="_blank"
+                rel="noreferrer"
+                className="block overflow-hidden rounded-xl border border-neutral-200"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={urlArchivo(f.archivo)}
+                  alt={`Foto ${f.id}`}
+                  className="aspect-square w-full object-cover"
+                  loading="lazy"
+                />
+              </a>
+              <button
+                onClick={() => borrarFoto(f.id)}
+                title="Eliminar foto"
+                aria-label={`Eliminar foto ${f.id}`}
+                className="absolute right-2 top-2 rounded-full bg-white/90 px-2 py-1 text-sm text-neutral-500 opacity-0 shadow transition group-hover:opacity-100 hover:text-rose-600 focus:opacity-100"
+              >
+                ✕
+              </button>
+            </div>
           ))}
         </div>
       )}
