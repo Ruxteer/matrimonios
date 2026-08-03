@@ -69,7 +69,11 @@ El proyecto funciona igual en dos modos, según las variables de entorno:
 | | Desarrollo (sin variables) | Producción |
 |---|---|---|
 | Base de datos | archivo `data/matrimonio.db` | Turso (`TURSO_DATABASE_URL`) |
-| Imágenes | carpeta `data/uploads/` | Vercel Blob (`BLOB_READ_WRITE_TOKEN`) |
+| Imágenes | carpeta `data/uploads/` | Vercel Blob (store **privado**) |
+
+En los dos casos la base guarda solo el nombre del archivo y las imágenes se
+entregan por `/api/archivos/<nombre>`, nunca por una URL pública: las fotos que
+suben los invitados no quedan expuestas a quien adivine la dirección.
 
 En desarrollo todo queda en `data/`, así que copiar esa carpeta es el respaldo
 completo. No se sube al repositorio.
@@ -89,8 +93,9 @@ alojado) y las imágenes a **Vercel Blob**.
 1. **Base de datos.** Crea una cuenta en [turso.tech](https://turso.tech), crea
    una base y copia su URL (`libsql://…`) y un token de acceso.
 2. **Imágenes.** En el panel de Vercel, pestaña *Storage* → *Create Database* →
-   **Blob**, y conéctalo al proyecto. Vercel agrega solo la variable
-   `BLOB_READ_WRITE_TOKEN`.
+   **Blob**, con acceso **Private**, y conéctalo al proyecto. Vercel agrega solas
+   las credenciales. Ojo: el modo de acceso del store no se puede cambiar después
+   de crearlo.
 3. **Variables de entorno** del proyecto en Vercel (*Settings → Environment
    Variables*):
 

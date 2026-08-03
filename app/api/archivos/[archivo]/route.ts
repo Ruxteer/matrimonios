@@ -1,36 +1,26 @@
 import { NextResponse } from "next/server";
-import fs from "fs/promises";
-import path from "path";
-import { CARPETA, NOMBRE_VALIDO } from "@/lib/archivos";
+import { leerImagen } from "@/lib/archivos";
 
 export const dynamic = "force-dynamic";
 
-const TIPO_POR_EXT: Record<string, string> = {
-  ".jpg": "image/jpeg",
-  ".png": "image/png",
-  ".webp": "image/webp",
-  ".gif": "image/gif",
-  ".heic": "image/heic",
-  ".heif": "image/heif",
-};
-
+// Única puerta de entrada a las imágenes: en la nube están en un almacén
+// privado, así que se entregan desde aquí y nunca por una URL pública.
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ archivo: string }> }
 ) {
   const { archivo } = await params;
-  if (!NOMBRE_VALIDO.test(archivo)) {
+  const imagen = await leerImagen(archivo);
+  if (!imagen) {
     return NextResponse.json({ error: "no encontrado" }, { status: 404 });
   }
-  try {
-    const datos = await fs.readFile(path.join(CARPETA, archivo));
-    return new Response(new Uint8Array(datos), {
-      headers: {
-        "Content-Type": TIPO_POR_EXT[path.extname(archivo)] ?? "application/octet-stream",
-        "Cache-Control": "public, max-age=31536000, immutable",
-      },
-    });
-  } catch {
-    return NextResponse.json({ error: "no encontrado" }, { status: 404 });
-  }
+  return new Response(imagen.cuerpo as BodyInit, {
+    headers: {
+      "Content-Type": imagen.tipo,
+      "X-Content-Type-Options": "nosniff",
+      // El nombre es aleatorio y nunca se reutiliza, así que la copia del
+      // navegador siempre sigue siendo válida.
+      "Cache-Control": "private, max-age=31536000, immutable",
+    },
+  });
 }
