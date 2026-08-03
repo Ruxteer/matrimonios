@@ -1,6 +1,6 @@
 import Image from "next/image";
 import type { Evento } from "@/lib/db";
-import { urlArchivo } from "@/lib/eventos";
+import { urlArchivo } from "@/lib/urls";
 import { COLORES } from "@/lib/config";
 
 const HEX = /^#[0-9a-fA-F]{6}$/;

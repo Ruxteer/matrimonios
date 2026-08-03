@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { Atajos, NotaPalomas } from "@/components/ui";
-import { getEvento, urlArchivo } from "@/lib/eventos";
+import { getEvento } from "@/lib/eventos";
+import { urlArchivo } from "@/lib/urls";
 
 export default async function MapaPage({
   params,
@@ -8,7 +9,7 @@ export default async function MapaPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const evento = getEvento(slug);
+  const evento = await getEvento(slug);
   if (!evento) notFound();
 
   return (

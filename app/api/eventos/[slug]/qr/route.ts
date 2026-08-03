@@ -11,7 +11,7 @@ export async function GET(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const { slug } = await params;
-  const evento = getEvento(slug);
+  const evento = await getEvento(slug);
   if (!evento) return NextResponse.json({ error: "no existe" }, { status: 404 });
 
   const url = new URL(`/${evento.slug}`, req.nextUrl.origin).toString();

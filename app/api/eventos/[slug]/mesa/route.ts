@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, Guest } from "@/lib/db";
+import { consultar, Guest } from "@/lib/db";
 import { getEvento } from "@/lib/eventos";
 
 export const dynamic = "force-dynamic";
@@ -17,15 +17,16 @@ export async function GET(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const { slug } = await params;
-  const evento = getEvento(slug);
+  const evento = await getEvento(slug);
   if (!evento) return NextResponse.json({ error: "no existe" }, { status: 404 });
 
   const q = normalizar(req.nextUrl.searchParams.get("q") ?? "");
   if (!q) return NextResponse.json({ results: [] });
 
-  const invitados = db()
-    .prepare("SELECT * FROM guests WHERE evento_id = ?")
-    .all(evento.id) as Guest[];
+  const invitados = await consultar<Guest>(
+    "SELECT * FROM guests WHERE evento_id = ?",
+    [evento.id]
+  );
 
   const encontrados = invitados
     .filter((g) => {

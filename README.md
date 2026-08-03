@@ -8,7 +8,7 @@ invitados y sus colores.
 ## Requisitos
 
 - **Node.js 20 o superior** (probado en 22). Con Node 18 Next 16 no arranca.
-- No hace falta base de datos aparte: usa SQLite en un archivo local.
+- Para desarrollar no hace falta nada más: la base es un archivo SQLite local.
 
 ## Puesta en marcha
 
@@ -62,11 +62,17 @@ public/design/       marco floral y textos del diseño
 data/                base de datos y archivos subidos (no se versiona)
 ```
 
-## Datos y respaldos
+## Dónde se guardan los datos
 
-Todo lo importante vive en la carpeta `data/`: la base `matrimonio.db` y las
-imágenes subidas en `data/uploads/`. **Copiar esa carpeta es el respaldo completo
-del evento.** No se sube al repositorio.
+El proyecto funciona igual en dos modos, según las variables de entorno:
+
+| | Desarrollo (sin variables) | Producción |
+|---|---|---|
+| Base de datos | archivo `data/matrimonio.db` | Turso (`TURSO_DATABASE_URL`) |
+| Imágenes | carpeta `data/uploads/` | Vercel Blob (`BLOB_READ_WRITE_TOKEN`) |
+
+En desarrollo todo queda en `data/`, así que copiar esa carpeta es el respaldo
+completo. No se sube al repositorio.
 
 ## Acceso
 
@@ -75,12 +81,39 @@ del evento.** No se sube al repositorio.
   la cookie de sesión que entrega `ADMIN_PASSWORD`.
 - Las fotos se guardan con un nombre aleatorio y solo se sirven por ese nombre.
 
-## Despliegue
+## Despliegue en Vercel
 
-El proyecto guarda la base y las fotos en el disco local, así que necesita un
-servidor con almacenamiento persistente (VPS, Fly.io con volumen, Railway o
-similar). En plataformas serverless sin disco, como Vercel, se perderían los
-datos entre despliegues.
+Vercel no tiene disco donde escribir, por eso la base va a **Turso** (SQLite
+alojado) y las imágenes a **Vercel Blob**.
 
-Recuerda definir `ADMIN_PASSWORD` en el entorno del servidor y respaldar `data/`
-con regularidad.
+1. **Base de datos.** Crea una cuenta en [turso.tech](https://turso.tech), crea
+   una base y copia su URL (`libsql://…`) y un token de acceso.
+2. **Imágenes.** En el panel de Vercel, pestaña *Storage* → *Create Database* →
+   **Blob**, y conéctalo al proyecto. Vercel agrega solo la variable
+   `BLOB_READ_WRITE_TOKEN`.
+3. **Variables de entorno** del proyecto en Vercel (*Settings → Environment
+   Variables*):
+
+   ```
+   ADMIN_PASSWORD=una-contraseña-larga-y-propia
+   TURSO_DATABASE_URL=libsql://tu-base.turso.io
+   TURSO_AUTH_TOKEN=el-token-de-turso
+   ```
+
+4. **Datos que ya tienes.** Si venías trabajando en local, sube esa base con:
+
+   ```bash
+   node scripts/subir-a-turso.mjs
+   ```
+
+   Lee `.env.local`, copia el esquema y las filas, y se niega a pisar una base
+   remota que ya tenga invitados (usa `--forzar` para reemplazarla).
+
+Las tablas se crean solas la primera vez, así que también puedes empezar de cero
+sin ejecutar nada.
+
+### Otros servidores
+
+En un servidor con disco propio (VPS, Fly.io con volumen, Railway) no hace falta
+nada de lo anterior: sin las variables de Turso y Blob, la base y las imágenes
+quedan en `data/`.

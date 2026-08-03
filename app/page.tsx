@@ -9,8 +9,8 @@ export const dynamic = "force-dynamic";
 
 // Portada del producto. Con un solo matrimonio cargado entra directo a él;
 // con varios, muestra la lista (cada uno tiene su propia URL y su propio QR).
-export default function Portada() {
-  const eventos = listarEventos();
+export default async function Portada() {
+  const eventos = await listarEventos();
 
   if (eventos.length === 1) redirect(`/${eventos[0].slug}`);
 

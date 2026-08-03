@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { consultar, ejecutar } from "@/lib/db";
 import { isAdmin, noAutorizado } from "@/lib/auth";
 import { getEvento } from "@/lib/eventos";
 
@@ -11,17 +11,18 @@ type Ctx = { params: Promise<{ slug: string }> };
 export async function GET(req: NextRequest, { params }: Ctx) {
   if (!isAdmin(req)) return noAutorizado();
   const { slug } = await params;
-  const evento = getEvento(slug);
+  const evento = await getEvento(slug);
   if (!evento) return NextResponse.json({ error: "no existe" }, { status: 404 });
-  const messages = db()
-    .prepare("SELECT * FROM messages WHERE evento_id = ? ORDER BY created_at DESC")
-    .all(evento.id);
+  const messages = await consultar(
+    "SELECT * FROM messages WHERE evento_id = ? ORDER BY created_at DESC",
+    [evento.id]
+  );
   return NextResponse.json(messages);
 }
 
 export async function POST(req: NextRequest, { params }: Ctx) {
   const { slug } = await params;
-  const evento = getEvento(slug);
+  const evento = await getEvento(slug);
   if (!evento) return NextResponse.json({ error: "no existe" }, { status: 404 });
   const body = await req.json().catch(() => null);
   const nombre = String(body?.nombre ?? "").trim();
@@ -32,8 +33,10 @@ export async function POST(req: NextRequest, { params }: Ctx) {
       { status: 400 }
     );
   }
-  db()
-    .prepare("INSERT INTO messages (evento_id, nombre, mensaje) VALUES (?, ?, ?)")
-    .run(evento.id, nombre, mensaje);
+  await ejecutar("INSERT INTO messages (evento_id, nombre, mensaje) VALUES (?, ?, ?)", [
+    evento.id,
+    nombre,
+    mensaje,
+  ]);
   return NextResponse.json({ ok: true }, { status: 201 });
 }

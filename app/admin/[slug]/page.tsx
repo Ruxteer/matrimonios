@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import Login from "@/components/admin/Login";
 import TablaInvitados from "@/components/admin/TablaInvitados";
 import Ajustes from "@/components/admin/Ajustes";
+import { urlArchivo } from "@/lib/urls";
 import type { Evento, Guest } from "@/lib/db";
 
 type Mensaje = { id: number; nombre: string; mensaje: string; created_at: string };
@@ -141,14 +142,14 @@ export default function AdminEvento() {
           {fotos.map((f) => (
             <a
               key={f.id}
-              href={`/api/archivos/${f.archivo}`}
+              href={urlArchivo(f.archivo)}
               target="_blank"
               rel="noreferrer"
               className="block overflow-hidden rounded-xl border border-neutral-200"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={`/api/archivos/${f.archivo}`}
+                src={urlArchivo(f.archivo)}
                 alt={`Foto ${f.id}`}
                 className="aspect-square w-full object-cover"
                 loading="lazy"

@@ -10,7 +10,7 @@ export default async function Inicio({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const evento = getEvento(slug);
+  const evento = await getEvento(slug);
   if (!evento) notFound();
 
   return (

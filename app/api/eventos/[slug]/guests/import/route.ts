@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import ExcelJS from "exceljs";
-import { db, newToken } from "@/lib/db";
+import { consultar, db, newToken } from "@/lib/db";
 import { isAdmin, noAutorizado } from "@/lib/auth";
 import { getEvento } from "@/lib/eventos";
 
@@ -76,13 +76,23 @@ function findHeader(sheet: ExcelJS.Worksheet): {
   return null;
 }
 
+type Fila = {
+  nombre: string;
+  telefono: string;
+  email: string;
+  grupo: string;
+  mesa: string;
+  cupos: number;
+  estado: string;
+};
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ) {
   if (!isAdmin(req)) return noAutorizado();
   const { slug } = await params;
-  const evento = getEvento(slug);
+  const evento = await getEvento(slug);
   if (!evento) return NextResponse.json({ error: "no existe" }, { status: 404 });
 
   const form = await req.formData();
@@ -114,59 +124,82 @@ export async function POST(
     );
   }
 
-  const insert = db().prepare(
-    `INSERT INTO guests (evento_id, nombre, telefono, email, grupo, mesa, cupos, estado, token)
-     VALUES (@evento_id, @nombre, @telefono, @email, @grupo, @mesa, @cupos, @estado, @token)`
-  );
-  const update = db().prepare(
-    `UPDATE guests SET telefono=@telefono, email=@email, grupo=@grupo, mesa=@mesa,
-     cupos=@cupos, estado=@estado, updated_at=datetime('now') WHERE id=@id`
-  );
-  const findByName = db().prepare(
-    "SELECT id FROM guests WHERE evento_id = ? AND nombre = ? COLLATE NOCASE"
-  );
+  // Una sola pasada por la planilla. Si un nombre viene repetido, vale la
+  // última fila (igual que cuando se procesaba fila por fila).
+  const porNombre = new Map<string, Fila>();
+  for (let r = header.headerRow + 1; r <= sheet.rowCount; r++) {
+    const row = sheet.getRow(r);
+    const data: Record<string, string> = {};
+    for (const [col, field] of Object.entries(header.columns)) {
+      data[field] = cellText(row.getCell(Number(col)).value);
+    }
+    const nombre =
+      data.nombre_completo || [data.nombre, data.apellido].filter(Boolean).join(" ");
+    if (!nombre) continue; // fila vacía
+    porNombre.set(nombre.toLowerCase(), {
+      nombre,
+      telefono: data.telefono ?? "",
+      email: data.email ?? "",
+      grupo: data.grupo ?? "",
+      mesa: data.mesa ?? "",
+      cupos: Number(data.cupos) || 1,
+      estado: parseEstado(data.estado ?? ""),
+    });
+  }
 
+  // Los invitados que ya están se piden de una vez: así la importación son
+  // dos viajes a la base y no uno por fila.
+  const existentes = await consultar<{ id: number; nombre: string }>(
+    "SELECT id, nombre FROM guests WHERE evento_id = ?",
+    [evento.id]
+  );
+  const idPorNombre = new Map(existentes.map((g) => [g.nombre.toLowerCase(), g.id]));
+
+  const sentencias = [];
   let created = 0;
   let updated = 0;
-  const errors: string[] = [];
 
-  const tx = db().transaction(() => {
-    for (let r = header.headerRow + 1; r <= sheet.rowCount; r++) {
-      const row = sheet.getRow(r);
-      const data: Record<string, string> = {};
-      for (const [col, field] of Object.entries(header.columns)) {
-        data[field] = cellText(row.getCell(Number(col)).value);
-      }
-      const nombre =
-        data.nombre_completo || [data.nombre, data.apellido].filter(Boolean).join(" ");
-      if (!nombre) continue; // fila vacía
-      const record = {
-        evento_id: evento.id,
-        nombre,
-        telefono: data.telefono ?? "",
-        email: data.email ?? "",
-        grupo: data.grupo ?? "",
-        mesa: data.mesa ?? "",
-        cupos: Number(data.cupos) || 1,
-        estado: parseEstado(data.estado ?? ""),
-      };
-      try {
-        const existing = findByName.get(evento.id, record.nombre) as
-          | { id: number }
-          | undefined;
-        if (existing) {
-          update.run({ ...record, id: existing.id });
-          updated++;
-        } else {
-          insert.run({ ...record, token: newToken() });
-          created++;
-        }
-      } catch (e) {
-        errors.push(`fila ${r}: ${e instanceof Error ? e.message : String(e)}`);
-      }
+  for (const [clave, f] of porNombre) {
+    const id = idPorNombre.get(clave);
+    if (id) {
+      sentencias.push({
+        sql: `UPDATE guests SET telefono=?, email=?, grupo=?, mesa=?, cupos=?, estado=?,
+              updated_at=datetime('now') WHERE id=?`,
+        args: [f.telefono, f.email, f.grupo, f.mesa, f.cupos, f.estado, id],
+      });
+      updated++;
+    } else {
+      sentencias.push({
+        sql: `INSERT INTO guests (evento_id, nombre, telefono, email, grupo, mesa, cupos, estado, token)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [
+          evento.id,
+          f.nombre,
+          f.telefono,
+          f.email,
+          f.grupo,
+          f.mesa,
+          f.cupos,
+          f.estado,
+          newToken(),
+        ],
+      });
+      created++;
     }
-  });
-  tx();
+  }
+
+  const errors: string[] = [];
+  if (sentencias.length) {
+    try {
+      const c = await db();
+      await c.batch(sentencias, "write");
+    } catch (e) {
+      return NextResponse.json(
+        { error: `no pudimos guardar la lista: ${e instanceof Error ? e.message : e}` },
+        { status: 500 }
+      );
+    }
+  }
 
   return NextResponse.json({ created, updated, errors });
 }

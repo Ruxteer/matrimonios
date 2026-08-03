@@ -6,8 +6,11 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   if (!isAdmin(req)) return noAutorizado();
-  const eventos = listarEventos().map((e) => ({ ...e, resumen: resumenEvento(e.id) }));
-  return NextResponse.json(eventos);
+  const eventos = await listarEventos();
+  const conResumen = await Promise.all(
+    eventos.map(async (e) => ({ ...e, resumen: await resumenEvento(e.id) }))
+  );
+  return NextResponse.json(conResumen);
 }
 
 export async function POST(req: NextRequest) {
@@ -21,7 +24,7 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
-  const evento = crearEvento({
+  const evento = await crearEvento({
     nombre1,
     nombre2,
     fecha: String(body?.fecha ?? ""),

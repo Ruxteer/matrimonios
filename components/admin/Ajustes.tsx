@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { urlArchivo } from "@/lib/urls";
 import type { Evento } from "@/lib/db";
 
 const COLORES: { campo: keyof Evento; label: string }[] = [
@@ -162,7 +163,7 @@ export default function Ajustes({
         {form.banner && (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img
-            src={`/api/archivos/${form.banner}`}
+            src={urlArchivo(form.banner)}
             alt="Banner del matrimonio"
             className="mb-3 w-full max-w-lg rounded-lg border border-neutral-200"
           />
@@ -213,7 +214,7 @@ export default function Ajustes({
         {form.mapa && (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img
-            src={form.mapa.startsWith("/") ? form.mapa : `/api/archivos/${form.mapa}`}
+            src={urlArchivo(form.mapa)}
             alt="Plano del lugar"
             className="mb-3 w-56 rounded-lg border border-neutral-200"
           />

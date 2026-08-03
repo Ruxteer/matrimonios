@@ -9,7 +9,7 @@ export default async function MensajePage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const evento = getEvento(slug);
+  const evento = await getEvento(slug);
   if (!evento) notFound();
 
   return (

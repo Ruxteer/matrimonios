@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, Guest } from "@/lib/db";
+import { ejecutar, uno, Guest } from "@/lib/db";
 import { isAdmin, noAutorizado } from "@/lib/auth";
 import { getEvento } from "@/lib/eventos";
 
@@ -22,7 +22,7 @@ const EDITABLE = [
 export async function PATCH(req: NextRequest, { params }: Ctx) {
   if (!isAdmin(req)) return noAutorizado();
   const { slug, id } = await params;
-  const evento = getEvento(slug);
+  const evento = await getEvento(slug);
   if (!evento) return NextResponse.json({ error: "no existe" }, { status: 404 });
 
   const body = await req.json();
@@ -30,33 +30,30 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   if (fields.length === 0) {
     return NextResponse.json({ error: "nada que actualizar" }, { status: 400 });
   }
-  const sets = fields.map((f) => `${f} = @${f}`).join(", ");
-  const values: Record<string, unknown> = { id: Number(id), evento: evento.id };
-  for (const f of fields) values[f] = body[f];
-  const result = db()
-    .prepare(
-      `UPDATE guests SET ${sets}, updated_at = datetime('now')
-       WHERE id = @id AND evento_id = @evento`
-    )
-    .run(values);
-  if (result.changes === 0) {
+  const sets = fields.map((f) => `${f} = ?`).join(", ");
+  const valores = fields.map((f) => body[f] as string | number);
+  const result = await ejecutar(
+    `UPDATE guests SET ${sets}, updated_at = datetime('now')
+     WHERE id = ? AND evento_id = ?`,
+    [...valores, Number(id), evento.id]
+  );
+  if (result.rowsAffected === 0) {
     return NextResponse.json({ error: "invitado no encontrado" }, { status: 404 });
   }
-  const guest = db()
-    .prepare("SELECT * FROM guests WHERE id = ?")
-    .get(Number(id)) as Guest;
+  const guest = await uno<Guest>("SELECT * FROM guests WHERE id = ?", [Number(id)]);
   return NextResponse.json(guest);
 }
 
 export async function DELETE(req: NextRequest, { params }: Ctx) {
   if (!isAdmin(req)) return noAutorizado();
   const { slug, id } = await params;
-  const evento = getEvento(slug);
+  const evento = await getEvento(slug);
   if (!evento) return NextResponse.json({ error: "no existe" }, { status: 404 });
-  const result = db()
-    .prepare("DELETE FROM guests WHERE id = ? AND evento_id = ?")
-    .run(Number(id), evento.id);
-  if (result.changes === 0) {
+  const result = await ejecutar(
+    "DELETE FROM guests WHERE id = ? AND evento_id = ?",
+    [Number(id), evento.id]
+  );
+  if (result.rowsAffected === 0) {
     return NextResponse.json({ error: "invitado no encontrado" }, { status: 404 });
   }
   return NextResponse.json({ ok: true });
