@@ -1,13 +1,12 @@
-import { consultar, ejecutar, uno, Evento } from "./db";
+import crypto from "crypto";
+import { consultar, ejecutar, newToken, uno, Evento } from "./db";
 import { COLORES } from "./config";
 import { borrarArchivo } from "./archivos";
-
-const HEX = /^#[0-9a-fA-F]{6}$/;
+import { normalizarModulos } from "./modulos";
 
 // Los colores se inyectan como CSS: solo se aceptan hex de 6 dígitos.
-export function colorValido(v: unknown): v is string {
-  return typeof v === "string" && HEX.test(v);
-}
+export { colorValido } from "./colores";
+import { colorValido } from "./colores";
 
 export function slugify(texto: string): string {
   return texto
@@ -52,8 +51,8 @@ export async function crearEvento(datos: {
   const slug = await slugDisponible(slugify(datos.slug || `${nombre1}-y-${nombre2}`));
   const res = await ejecutar(
     `INSERT INTO eventos (slug, nombre1, nombre2, fecha, color_fondo, color_rosa,
-                          color_card, color_texto, color_dorado)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                          color_card, color_texto, color_dorado, pantalla_token)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       slug,
       nombre1,
@@ -64,6 +63,7 @@ export async function crearEvento(datos: {
       COLORES.card,
       COLORES.texto,
       COLORES.dorado,
+      newToken(),
     ]
   );
   return (await uno<Evento>("SELECT * FROM eventos WHERE id = ?", [
@@ -103,6 +103,13 @@ export async function actualizarEvento(
     sets.push("banner_texto = ?");
     valores.push(body.banner_texto ? 1 : 0);
   }
+  if ("modulos" in body) {
+    const modulos = normalizarModulos(body.modulos);
+    if (modulos) {
+      sets.push("modulos = ?");
+      valores.push(modulos);
+    }
+  }
   if ("slug" in body) {
     sets.push("slug = ?");
     valores.push(await slugDisponible(slugify(String(body.slug)), evento.id));
@@ -116,20 +123,91 @@ export async function actualizarEvento(
   return (await uno<Evento>("SELECT * FROM eventos WHERE id = ?", [evento.id]))!;
 }
 
+// Tablas que cuelgan de otra tabla y no del matrimonio: para borrarlas hay que
+// pasar por su padre.
+const HIJAS: [hija: string, campo: string, padre: string][] = [
+  ["encuesta_preguntas", "encuesta_id", "encuestas"],
+  ["encuesta_respuestas", "encuesta_id", "encuestas"],
+  ["votacion_opciones", "votacion_id", "votaciones"],
+  ["votos", "votacion_id", "votaciones"],
+  ["trivia_preguntas", "trivia_id", "trivias"],
+  ["trivia_partidas", "trivia_id", "trivias"],
+];
+
+const POR_EVENTO = [
+  "guests",
+  "messages",
+  "photos",
+  "agenda",
+  "encuestas",
+  "votaciones",
+  "sorteos",
+  "trivias",
+];
+
 export async function eliminarEvento(evento: Evento) {
   const fotos = await consultar<{ archivo: string }>(
     "SELECT archivo FROM photos WHERE evento_id = ?",
     [evento.id]
   );
-  for (const tabla of ["guests", "messages", "photos"]) {
+  const imagenes = await consultar<{ imagen: string }>(
+    `SELECT imagen FROM votacion_opciones
+      WHERE imagen <> '' AND votacion_id IN (SELECT id FROM votaciones WHERE evento_id = ?)`,
+    [evento.id]
+  );
+
+  await ejecutar(
+    `DELETE FROM encuesta_valores WHERE respuesta_id IN (
+       SELECT id FROM encuesta_respuestas WHERE encuesta_id IN
+         (SELECT id FROM encuestas WHERE evento_id = ?))`,
+    [evento.id]
+  );
+  for (const [hija, campo, padre] of HIJAS) {
+    await ejecutar(
+      `DELETE FROM ${hija} WHERE ${campo} IN (SELECT id FROM ${padre} WHERE evento_id = ?)`,
+      [evento.id]
+    );
+  }
+  for (const tabla of POR_EVENTO) {
     await ejecutar(`DELETE FROM ${tabla} WHERE evento_id = ?`, [evento.id]);
   }
   await ejecutar("DELETE FROM eventos WHERE id = ?", [evento.id]);
 
   // Las imágenes del matrimonio dejan de estar referenciadas.
-  for (const archivo of [...fotos.map((f) => f.archivo), evento.banner, evento.mapa]) {
+  for (const archivo of [
+    ...fotos.map((f) => f.archivo),
+    ...imagenes.map((i) => i.imagen),
+    evento.banner,
+    evento.mapa,
+  ]) {
     await borrarArchivo(archivo);
   }
+}
+
+// La pantalla del salón se abre con una clave propia en la dirección, para no
+// tener que escribir la contraseña del panel en el notebook del lugar.
+export async function regenerarTokenPantalla(evento: Evento): Promise<Evento> {
+  await ejecutar("UPDATE eventos SET pantalla_token = ? WHERE id = ?", [
+    newToken(),
+    evento.id,
+  ]);
+  return (await uno<Evento>("SELECT * FROM eventos WHERE id = ?", [evento.id]))!;
+}
+
+export function tokenPantallaValido(evento: Evento, intento: string): boolean {
+  const guardado = evento.pantalla_token ?? "";
+  if (!guardado) return false;
+  const hash = (s: string) => crypto.createHash("sha256").update(s).digest();
+  return crypto.timingSafeEqual(hash(intento), hash(guardado));
+}
+
+// Todo lo que se le entrega al navegador de un invitado pasa por aquí: la
+// clave de la pantalla y el id interno no salen del servidor.
+export function eventoPublico(evento: Evento) {
+  const { id, pantalla_token, ...publico } = evento;
+  void id;
+  void pantalla_token;
+  return publico;
 }
 
 export async function resumenEvento(id: number) {

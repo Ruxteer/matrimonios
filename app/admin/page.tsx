@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Login from "@/components/admin/Login";
+import { modulosActivos } from "@/lib/modulos";
 import type { Evento } from "@/lib/db";
 
 type Resumen = { invitados: number; mesas: number; mensajes: number; fotos: number };
@@ -84,7 +85,8 @@ export default function AdminInicio() {
             <p className="mt-1 font-mono text-xs text-neutral-400">/{e.slug}</p>
             <p className="mt-2 text-xs text-neutral-500">
               {e.resumen.invitados} invitados · {e.resumen.mesas} mesas ·{" "}
-              {e.resumen.mensajes} mensajes · {e.resumen.fotos} fotos
+              {e.resumen.mensajes} mensajes · {e.resumen.fotos} fotos ·{" "}
+              {modulosActivos(e).length} módulos
             </p>
           </Link>
         ))}

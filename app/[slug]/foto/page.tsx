@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import SubirFoto from "@/components/SubirFoto";
 import { Atajos, NotaPalomas } from "@/components/ui";
 import { getEvento } from "@/lib/eventos";
+import { moduloActivo } from "@/lib/modulos";
 
 export default async function FotoPage({
   params,
@@ -10,7 +11,7 @@ export default async function FotoPage({
 }) {
   const { slug } = await params;
   const evento = await getEvento(slug);
-  if (!evento) notFound();
+  if (!evento || !moduloActivo(evento, "fotos")) notFound();
 
   return (
     <>
@@ -20,7 +21,7 @@ export default async function FotoPage({
 
       <SubirFoto slug={evento.slug} />
 
-      <Atajos slug={evento.slug} omitir="foto" sinMapa={!evento.mapa} />
+      <Atajos evento={evento} omitir="fotos" />
 
       <NotaPalomas>
         Tu foto será parte de los

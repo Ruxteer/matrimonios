@@ -1,8 +1,9 @@
 import { notFound } from "next/navigation";
 import BuscadorMesa from "@/components/BuscadorMesa";
-import { TarjetaAccion } from "@/components/ui";
-import { IconCamara, IconMapa, IconSobre } from "@/components/Icons";
+import { TarjetaAccion, Vacio } from "@/components/ui";
+import { IconoModulo } from "@/components/Icons";
 import { getEvento } from "@/lib/eventos";
+import { modulosActivos } from "@/lib/modulos";
 
 export default async function Inicio({
   params,
@@ -13,54 +14,42 @@ export default async function Inicio({
   const evento = await getEvento(slug);
   if (!evento) notFound();
 
+  // El inicio se arma con los módulos que el matrimonio dejó encendidos, en su
+  // orden. La mesa va destacada arriba (es el buscador), el resto son tarjetas.
+  const modulos = modulosActivos(evento);
+  const buscador = modulos.find((m) => m.destacado);
+  const tarjetas = modulos.filter((m) => !m.destacado);
+
   return (
     <>
       <h2 className="mb-5 text-center font-serif text-lg font-bold">
         Hola, nos alegra que estés aquí
       </h2>
 
-      <BuscadorMesa slug={evento.slug} />
+      {buscador && <BuscadorMesa slug={evento.slug} />}
 
-      <h2 className="mb-4 mt-6 text-center font-serif text-lg font-bold">
-        Durante el evento podrás:
-      </h2>
+      {tarjetas.length > 0 && (
+        <>
+          <h2 className="mb-4 mt-6 text-center font-serif text-lg font-bold">
+            Durante el evento podrás:
+          </h2>
+          <div className="space-y-3">
+            {tarjetas.map((m) => (
+              <TarjetaAccion
+                key={m.id}
+                icon={<IconoModulo id={m.id} className="h-[34px] w-auto" />}
+                texto={m.tarjeta}
+                boton={m.boton}
+                href={`/${evento.slug}/${m.ruta}`}
+              />
+            ))}
+          </div>
+        </>
+      )}
 
-      <div className="space-y-3">
-        <TarjetaAccion
-          icon={<IconSobre className="h-[34px] w-auto" />}
-          texto={
-            <>
-              Deja tus buenos deseos
-              <br /> para los novios
-            </>
-          }
-          boton="Enviar mensaje"
-          href={`/${evento.slug}/mensaje`}
-        />
-        <TarjetaAccion
-          icon={<IconCamara className="h-[34px] w-auto" />}
-          texto={
-            <>
-              Comparte tus mejores
-              <br /> momentos del evento
-            </>
-          }
-          boton="Subir foto"
-          href={`/${evento.slug}/foto`}
-        />
-        {evento.mapa && (
-          <TarjetaAccion
-            icon={<IconMapa className="h-[41px] w-auto" />}
-            texto={
-              <>
-                Explora el plano y<br /> encuentra todo fácilmente
-              </>
-            }
-            boton="Ver mapa"
-            href={`/${evento.slug}/mapa`}
-          />
-        )}
-      </div>
+      {modulos.length === 0 && (
+        <Vacio>Muy pronto vas a encontrar todo lo del evento aquí.</Vacio>
+      )}
     </>
   );
 }

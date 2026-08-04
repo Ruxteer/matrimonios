@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { IconCamara, IconMapa, IconPalomas, IconSobre } from "./Icons";
+import type { Evento } from "@/lib/db";
+import { modulosActivos, type ModuloId } from "@/lib/modulos";
+import { IconoModulo, IconPalomas } from "./Icons";
 
 export function BotonRosa({
   children,
@@ -16,7 +18,7 @@ export function BotonRosa({
   disabled?: boolean;
   className?: string;
 }) {
-  const base = `block w-full rounded-[9px] bg-rosa py-2 text-center text-[13px] font-bold text-white shadow-sm transition hover:brightness-95 disabled:opacity-50 ${className}`;
+  const base = `block w-full rounded-[9px] bg-rosa py-2 text-center text-[13px] font-bold text-rosa-texto shadow-sm transition hover:brightness-95 disabled:opacity-50 ${className}`;
   if (href) {
     return (
       <Link href={href} className={base}>
@@ -31,7 +33,31 @@ export function BotonRosa({
   );
 }
 
-// Tarjeta de acción del inicio: ícono a la izquierda, texto y botón (259px en el diseño).
+// Contenedor de todo lo que va dentro del sitio del invitado: el ancho de 259px
+// viene del diseño y es lo que hace que todas las pantallas se vean iguales.
+export function Tarjeta({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={`mx-auto w-full max-w-[259px] rounded-[20px] bg-gris-card p-[15px] shadow-sm ${className}`}>
+      {children}
+    </div>
+  );
+}
+
+export function Titulo({ children }: { children: React.ReactNode }) {
+  return (
+    <h2 className="mb-5 text-center font-serif text-lg font-bold whitespace-pre-line">
+      {children}
+    </h2>
+  );
+}
+
+// Tarjeta de acción del inicio: ícono a la izquierda, texto y botón.
 export function TarjetaAccion({
   icon,
   texto,
@@ -44,57 +70,33 @@ export function TarjetaAccion({
   href: string;
 }) {
   return (
-    <div className="mx-auto w-full max-w-[259px] rounded-[20px] bg-gris-card p-[15px] shadow-sm">
+    <Tarjeta>
       <div className="mb-3 flex items-center gap-4 pl-3 pr-1">
         <span className="shrink-0">{icon}</span>
-        <p className="font-serif text-xs font-bold leading-snug">{texto}</p>
+        <p className="whitespace-pre-line font-serif text-xs font-bold leading-snug">
+          {texto}
+        </p>
       </div>
       <BotonRosa href={href}>{boton}</BotonRosa>
-    </div>
+    </Tarjeta>
   );
 }
 
-// Atajos cuadrados al pie de mensaje/foto/mapa.
-export function Atajos({
-  slug,
-  omitir,
-  sinMapa,
-}: {
-  slug: string;
-  omitir: "mensaje" | "foto" | "mapa";
-  sinMapa?: boolean;
-}) {
-  const items = [
-    {
-      key: "mensaje",
-      href: `/${slug}/mensaje`,
-      label: "Enviar mensaje",
-      icon: <IconSobre className="h-9 w-auto" />,
-    },
-    {
-      key: "foto",
-      href: `/${slug}/foto`,
-      label: "Subir foto",
-      icon: <IconCamara className="h-9 w-auto" />,
-    },
-    {
-      key: "mapa",
-      href: `/${slug}/mapa`,
-      label: "Ver mapa",
-      icon: <IconMapa className="h-10 w-auto" />,
-    },
-  ].filter((i) => i.key !== omitir && !(sinMapa && i.key === "mapa"));
+// Atajos cuadrados al pie de cada módulo: lleva a los demás módulos encendidos.
+export function Atajos({ evento, omitir }: { evento: Evento; omitir: ModuloId }) {
+  const items = modulosActivos(evento).filter((m) => m.id !== omitir);
+  if (!items.length) return null;
 
   return (
     <div className="mx-auto mt-10 grid w-full max-w-[280px] grid-cols-2 gap-4">
-      {items.map((i) => (
+      {items.map((m) => (
         <div
-          key={i.key}
+          key={m.id}
           className="flex flex-col items-center justify-end gap-4 rounded-[20px] bg-gris-card px-3 pb-4 pt-6 shadow-sm"
         >
-          {i.icon}
-          <BotonRosa href={i.href} className="text-xs py-1.5">
-            {i.label}
+          <IconoModulo id={m.id} className="h-9 w-auto" />
+          <BotonRosa href={`/${evento.slug}/${m.ruta}`} className="text-xs py-1.5">
+            {m.boton}
           </BotonRosa>
         </div>
       ))}
@@ -108,5 +110,15 @@ export function NotaPalomas({ children }: { children: React.ReactNode }) {
       <IconPalomas className="w-9 shrink-0" />
       <p className="text-left font-serif text-xs font-bold leading-snug">{children}</p>
     </div>
+  );
+}
+
+// Estado vacío: el módulo está encendido pero el organizador todavía no cargó
+// contenido. El invitado no debería quedarse mirando una pantalla en blanco.
+export function Vacio({ children }: { children: React.ReactNode }) {
+  return (
+    <Tarjeta className="px-6 py-10 text-center">
+      <p className="text-sm opacity-70">{children}</p>
+    </Tarjeta>
   );
 }

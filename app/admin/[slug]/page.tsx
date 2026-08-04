@@ -6,12 +6,19 @@ import { useParams } from "next/navigation";
 import Login from "@/components/admin/Login";
 import TablaInvitados from "@/components/admin/TablaInvitados";
 import Ajustes from "@/components/admin/Ajustes";
+import Modulos from "@/components/admin/Modulos";
+import Agenda from "@/components/admin/Agenda";
+import Encuestas from "@/components/admin/Encuestas";
+import Votaciones from "@/components/admin/Votaciones";
+import Sorteos from "@/components/admin/Sorteos";
+import Trivia from "@/components/admin/Trivia";
 import { urlArchivo } from "@/lib/urls";
+import { modulosActivos, type ModuloId } from "@/lib/modulos";
 import type { Evento, Guest } from "@/lib/db";
 
 type Mensaje = { id: number; nombre: string; mensaje: string; created_at: string };
 type Foto = { id: number; archivo: string; created_at: string };
-type Tab = "invitados" | "mensajes" | "fotos" | "ajustes";
+type Tab = ModuloId | "invitados" | "modulos" | "ajustes";
 
 export default function AdminEvento() {
   const { slug } = useParams<{ slug: string }>();
@@ -71,6 +78,25 @@ export default function AdminEvento() {
   }
   if (!evento) return <p className="p-6 text-neutral-500">Cargando…</p>;
 
+  // Las pestañas siguen a los módulos encendidos y su orden: lo que el
+  // matrimonio no usa no aparece en el panel. Mesa se administra desde
+  // Invitados y Mapa desde Ajustes, así que no tienen pestaña propia.
+  const conPanel = modulosActivos(evento).filter(
+    (m) => m.id !== "mesa" && m.id !== "mapa"
+  );
+  const etiquetas: Partial<Record<ModuloId, string>> = {
+    mensajes: `Mensajes (${mensajes.length})`,
+    fotos: `Fotos (${fotos.length})`,
+  };
+  const pestañas: [Tab, string][] = [
+    ["invitados", `Invitados (${guests.length})`],
+    ...conPanel.map((m): [Tab, string] => [m.id, etiquetas[m.id] ?? m.nombre]),
+    ["modulos", "Módulos"],
+    ["ajustes", "Ajustes"],
+  ];
+  // Al apagar un módulo su pestaña desaparece: hay que volver a una que exista.
+  const actual = pestañas.some(([key]) => key === tab) ? tab : "invitados";
+
   return (
     <main className="mx-auto max-w-6xl p-6">
       <Link href="/admin" className="text-sm text-neutral-400 hover:text-neutral-700">
@@ -93,20 +119,13 @@ export default function AdminEvento() {
         </a>
       </div>
 
-      <div className="mb-5 flex gap-1 border-b border-neutral-200">
-        {(
-          [
-            ["invitados", `Invitados (${guests.length})`],
-            ["mensajes", `Mensajes (${mensajes.length})`],
-            ["fotos", `Fotos (${fotos.length})`],
-            ["ajustes", "Ajustes"],
-          ] as [Tab, string][]
-        ).map(([key, label]) => (
+      <div className="mb-5 flex flex-wrap gap-1 border-b border-neutral-200">
+        {pestañas.map(([key, label]) => (
           <button
             key={key}
             onClick={() => setTab(key)}
             className={`rounded-t-lg px-4 py-2 text-sm ${
-              tab === key
+              actual === key
                 ? "border border-b-0 border-neutral-200 bg-white font-medium"
                 : "text-neutral-500 hover:text-neutral-800"
             }`}
@@ -116,7 +135,7 @@ export default function AdminEvento() {
         ))}
       </div>
 
-      {tab === "invitados" && (
+      {actual === "invitados" && (
         <TablaInvitados
           slug={evento.slug}
           guests={guests}
@@ -125,7 +144,7 @@ export default function AdminEvento() {
         />
       )}
 
-      {tab === "mensajes" && (
+      {actual === "mensajes" && (
         <div className="space-y-3">
           {mensajes.length === 0 && <p className="text-neutral-400">Aún no llegan mensajes.</p>}
           {mensajes.map((m) => (
@@ -140,7 +159,7 @@ export default function AdminEvento() {
         </div>
       )}
 
-      {tab === "fotos" && (
+      {actual === "fotos" && (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-6">
           {fotos.length === 0 && (
             <p className="col-span-full text-neutral-400">Aún no suben fotos.</p>
@@ -174,7 +193,14 @@ export default function AdminEvento() {
         </div>
       )}
 
-      {tab === "ajustes" && <Ajustes evento={evento} onGuardado={setEvento} />}
+      {actual === "agenda" && <Agenda slug={evento.slug} />}
+      {actual === "encuestas" && <Encuestas slug={evento.slug} />}
+      {actual === "votaciones" && <Votaciones slug={evento.slug} />}
+      {actual === "sorteos" && <Sorteos slug={evento.slug} />}
+      {actual === "trivia" && <Trivia slug={evento.slug} />}
+
+      {actual === "modulos" && <Modulos evento={evento} onGuardado={setEvento} />}
+      {actual === "ajustes" && <Ajustes evento={evento} onGuardado={setEvento} />}
     </main>
   );
 }

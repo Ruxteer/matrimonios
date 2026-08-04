@@ -2,21 +2,29 @@ import Image from "next/image";
 import type { Evento } from "@/lib/db";
 import { urlArchivo } from "@/lib/urls";
 import { COLORES } from "@/lib/config";
+import { aclarar, colorValido, oscurecer, textoSobre } from "@/lib/colores";
 
-const HEX = /^#[0-9a-fA-F]{6}$/;
-const color = (v: string, porDefecto: string) => (HEX.test(v) ? v : porDefecto);
+const color = (v: string, porDefecto: string) => (colorValido(v) ? v : porDefecto);
 
 // Los colores del matrimonio se inyectan como variables CSS: el resto de la
-// interfaz ya usa bg-rosa, bg-gris-card, etc.
+// interfaz ya usa bg-rosa, bg-gris-card, etc. Los tonos derivados (hover, rosa
+// suave, dorado oscuro) se calculan aquí para que cualquier paleta que elija el
+// organizador quede completa, y el color del texto de los botones se decide por
+// contraste: con una paleta clara el blanco no se lee.
 export function ColoresEvento({ evento }: { evento: Evento }) {
+  const boton = color(evento.color_rosa, COLORES.rosa);
+  const dorado = color(evento.color_dorado, COLORES.dorado);
   const css = `:root{
     --background:${color(evento.color_fondo, COLORES.fondo)};
     --foreground:${color(evento.color_texto, COLORES.texto)};
-    --rosa:${color(evento.color_rosa, COLORES.rosa)};
-    --rosa-hover:${color(evento.color_rosa, COLORES.rosa)};
-    --rosa-footer:${color(evento.color_rosa, COLORES.rosa)};
+    --rosa:${boton};
+    --rosa-hover:${oscurecer(boton, 0.12)};
+    --rosa-footer:${boton};
+    --rosa-suave:${aclarar(boton, 0.72)};
+    --rosa-texto:${textoSobre(boton)};
     --gris-card:${color(evento.color_card, COLORES.card)};
-    --dorado:${color(evento.color_dorado, COLORES.dorado)};
+    --dorado:${dorado};
+    --dorado-oscuro:${oscurecer(dorado, 0.18)};
   }`;
   return <style>{css}</style>;
 }

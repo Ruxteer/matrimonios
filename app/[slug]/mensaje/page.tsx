@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import FormularioMensaje from "@/components/FormularioMensaje";
 import { Atajos, NotaPalomas } from "@/components/ui";
 import { getEvento } from "@/lib/eventos";
+import { moduloActivo } from "@/lib/modulos";
 
 export default async function MensajePage({
   params,
@@ -10,7 +11,7 @@ export default async function MensajePage({
 }) {
   const { slug } = await params;
   const evento = await getEvento(slug);
-  if (!evento) notFound();
+  if (!evento || !moduloActivo(evento, "mensajes")) notFound();
 
   return (
     <>
@@ -20,7 +21,7 @@ export default async function MensajePage({
 
       <FormularioMensaje slug={evento.slug} />
 
-      <Atajos slug={evento.slug} omitir="mensaje" sinMapa={!evento.mapa} />
+      <Atajos evento={evento} omitir="mensajes" />
 
       <NotaPalomas>
         Tu mensaje será parte de los

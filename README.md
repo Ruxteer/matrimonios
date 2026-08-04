@@ -1,9 +1,29 @@
 # Matrimonios
 
-Sitio web para matrimonios: los invitados escanean un QR y pueden buscar su mesa,
-dejar un mensaje a los novios, subir fotos y ver el plano del lugar. Un mismo
-despliegue atiende a varias bodas: cada una tiene su propia dirección, su QR, sus
-invitados y sus colores.
+Sitio web para matrimonios: los invitados escanean un QR y encuentran todo lo del
+evento en su teléfono. Un mismo despliegue atiende a varias bodas: cada una tiene
+su propia dirección, su QR, sus invitados, sus colores y sus módulos.
+
+## Módulos
+
+El sitio de cada matrimonio se arma con módulos que se encienden y ordenan desde
+el panel (pestaña **Módulos**). Ninguno es obligatorio:
+
+| Módulo | Qué hace | Dirección |
+|---|---|---|
+| Mesa | Cada invitado busca su nombre y ve su mesa | `/<boda>/mesa` |
+| Mensajes | Saludos escritos para los novios | `/<boda>/mensaje` |
+| Fotos | Galería colaborativa | `/<boda>/foto` |
+| Mapa | El plano del lugar (necesita una imagen subida) | `/<boda>/mapa` |
+| Agenda | El programa del día | `/<boda>/agenda` |
+| Encuestas | Preguntas configurables y sus resultados | `/<boda>/encuesta` |
+| Votaciones | Alternativas, votos y resultados en vivo | `/<boda>/votacion` |
+| Sorteos | Ganadores al azar entre invitados o participantes | `/<boda>/sorteo` |
+| Trivia | Juego de preguntas con puntaje y ranking | `/<boda>/trivia` |
+
+Un módulo apagado desaparece del inicio, de los atajos y del panel, y su
+dirección responde 404. Los módulos nuevos que se agreguen al producto aparecen
+apagados en las bodas que ya existían (ver `lib/modulos.ts`).
 
 ## Requisitos
 
@@ -39,10 +59,15 @@ La primera vez que se usa se crea sola la base en `data/matrimonio.db`.
    de los novios. Queda con una dirección propia, por ejemplo `/camila-y-juan`.
 2. En la pestaña **Invitados**, importa la lista desde Excel (hay una plantilla
    descargable) o agrégalos a mano. Cualquier celda se edita haciendo clic.
-3. En **Ajustes** puedes cambiar los nombres, la fecha, la dirección web, los
-   colores del sitio, subir un banner propio y el plano del lugar, y descargar
-   el **QR** en PNG o SVG para imprimirlo.
-4. Los invitados escanean ese QR y llegan al sitio de esa boda.
+3. En **Módulos** eliges qué ve el invitado y en qué orden: enciendes o apagas
+   cada módulo y lo subes o bajas en la lista.
+4. En **Ajustes** puedes cambiar los nombres, la fecha, la dirección web, la
+   **paleta de colores** (hay paletas listas o los cinco colores a mano, con
+   vista previa), subir un banner propio y el plano del lugar, y descargar el
+   **QR** en PNG o SVG para imprimirlo.
+5. Cada módulo encendido tiene su pestaña en el panel para cargar su contenido
+   (actividades de la agenda, encuestas, votaciones, sorteos, trivia).
+6. Los invitados escanean ese QR y llegan al sitio de esa boda.
 
 El Excel se lee de forma flexible: busca la fila de encabezados dentro de las
 primeras filas y reconoce columnas como `Nombre completo`, `Nombre`, `Apellido`,
@@ -53,11 +78,12 @@ nombre) en vez de duplicarlos.
 ## Estructura
 
 ```
-app/[slug]/          sitio público de cada matrimonio (inicio, mesa, mensaje, foto, mapa)
+app/[slug]/          sitio público de cada matrimonio (una carpeta por módulo)
 app/admin/           panel: lista de matrimonios y administración de cada uno
-app/api/eventos/     API por matrimonio (invitados, mensajes, fotos, mesa, QR)
-components/          interfaz compartida
-lib/                 base de datos, autenticación, archivos y lógica de eventos
+app/api/eventos/     API por matrimonio (invitados, QR y el contenido de cada módulo)
+components/          interfaz compartida (components/admin/ es el panel)
+lib/modulos.ts       catálogo de módulos: agregar uno aquí lo deja disponible en el panel
+lib/                 base de datos, autenticación, archivos, colores y lógica de eventos
 public/design/       marco floral y textos del diseño
 data/                base de datos y archivos subidos (no se versiona)
 ```

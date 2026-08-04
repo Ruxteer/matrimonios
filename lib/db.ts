@@ -57,6 +57,8 @@ const ESQUEMA = [
      banner TEXT NOT NULL DEFAULT '',
      banner_texto INTEGER NOT NULL DEFAULT 1,
      mapa TEXT NOT NULL DEFAULT '',
+     modulos TEXT NOT NULL DEFAULT '',
+     pantalla_token TEXT NOT NULL DEFAULT '',
      created_at TEXT DEFAULT (datetime('now'))
    )`,
   `CREATE TABLE IF NOT EXISTS guests (
@@ -88,6 +90,128 @@ const ESQUEMA = [
      archivo TEXT NOT NULL,
      created_at TEXT DEFAULT (datetime('now'))
    )`,
+
+  // Agenda: las actividades del día, en el orden en que ocurren.
+  `CREATE TABLE IF NOT EXISTS agenda (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     evento_id INTEGER NOT NULL,
+     titulo TEXT NOT NULL,
+     descripcion TEXT NOT NULL DEFAULT '',
+     lugar TEXT NOT NULL DEFAULT '',
+     hora TEXT NOT NULL DEFAULT '',
+     dia TEXT NOT NULL DEFAULT '',
+     orden INTEGER NOT NULL DEFAULT 0,
+     created_at TEXT DEFAULT (datetime('now'))
+   )`,
+
+  // Encuestas: una encuesta tiene preguntas; cada invitado que responde deja
+  // una fila en encuesta_respuestas y un valor por pregunta contestada.
+  `CREATE TABLE IF NOT EXISTS encuestas (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     evento_id INTEGER NOT NULL,
+     titulo TEXT NOT NULL,
+     descripcion TEXT NOT NULL DEFAULT '',
+     mensaje_final TEXT NOT NULL DEFAULT '',
+     pide_nombre INTEGER NOT NULL DEFAULT 0,
+     abierta INTEGER NOT NULL DEFAULT 1,
+     orden INTEGER NOT NULL DEFAULT 0,
+     created_at TEXT DEFAULT (datetime('now'))
+   )`,
+  `CREATE TABLE IF NOT EXISTS encuesta_preguntas (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     encuesta_id INTEGER NOT NULL,
+     texto TEXT NOT NULL,
+     tipo TEXT NOT NULL DEFAULT 'corta',
+     opciones TEXT NOT NULL DEFAULT '',
+     obligatoria INTEGER NOT NULL DEFAULT 0,
+     orden INTEGER NOT NULL DEFAULT 0
+   )`,
+  `CREATE TABLE IF NOT EXISTS encuesta_respuestas (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     encuesta_id INTEGER NOT NULL,
+     participante TEXT NOT NULL DEFAULT '',
+     sesion TEXT NOT NULL DEFAULT '',
+     created_at TEXT DEFAULT (datetime('now'))
+   )`,
+  `CREATE TABLE IF NOT EXISTS encuesta_valores (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     respuesta_id INTEGER NOT NULL,
+     pregunta_id INTEGER NOT NULL,
+     valor TEXT NOT NULL DEFAULT ''
+   )`,
+
+  // Votaciones: alternativas y un voto por opción elegida.
+  `CREATE TABLE IF NOT EXISTS votaciones (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     evento_id INTEGER NOT NULL,
+     titulo TEXT NOT NULL,
+     descripcion TEXT NOT NULL DEFAULT '',
+     multiple INTEGER NOT NULL DEFAULT 0,
+     resultados TEXT NOT NULL DEFAULT 'siempre',
+     abierta INTEGER NOT NULL DEFAULT 1,
+     orden INTEGER NOT NULL DEFAULT 0,
+     created_at TEXT DEFAULT (datetime('now'))
+   )`,
+  `CREATE TABLE IF NOT EXISTS votacion_opciones (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     votacion_id INTEGER NOT NULL,
+     texto TEXT NOT NULL,
+     imagen TEXT NOT NULL DEFAULT '',
+     orden INTEGER NOT NULL DEFAULT 0
+   )`,
+  `CREATE TABLE IF NOT EXISTS votos (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     votacion_id INTEGER NOT NULL,
+     opcion_id INTEGER NOT NULL,
+     sesion TEXT NOT NULL DEFAULT '',
+     created_at TEXT DEFAULT (datetime('now'))
+   )`,
+
+  // Sorteos: la lista de ganadores queda guardada como evidencia de lo que
+  // salió, con la hora en que se ejecutó.
+  `CREATE TABLE IF NOT EXISTS sorteos (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     evento_id INTEGER NOT NULL,
+     titulo TEXT NOT NULL,
+     premio TEXT NOT NULL DEFAULT '',
+     fuente TEXT NOT NULL DEFAULT 'invitados',
+     lista TEXT NOT NULL DEFAULT '',
+     cantidad INTEGER NOT NULL DEFAULT 1,
+     excluir_anteriores INTEGER NOT NULL DEFAULT 1,
+     publicado INTEGER NOT NULL DEFAULT 1,
+     ganadores TEXT NOT NULL DEFAULT '',
+     ejecutado_at TEXT NOT NULL DEFAULT '',
+     created_at TEXT DEFAULT (datetime('now'))
+   )`,
+
+  // Trivia: preguntas con alternativas y el puntaje de cada partida jugada.
+  `CREATE TABLE IF NOT EXISTS trivias (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     evento_id INTEGER NOT NULL,
+     titulo TEXT NOT NULL,
+     descripcion TEXT NOT NULL DEFAULT '',
+     abierta INTEGER NOT NULL DEFAULT 1,
+     orden INTEGER NOT NULL DEFAULT 0,
+     created_at TEXT DEFAULT (datetime('now'))
+   )`,
+  `CREATE TABLE IF NOT EXISTS trivia_preguntas (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     trivia_id INTEGER NOT NULL,
+     enunciado TEXT NOT NULL,
+     opciones TEXT NOT NULL DEFAULT '',
+     correctas TEXT NOT NULL DEFAULT '',
+     explicacion TEXT NOT NULL DEFAULT '',
+     orden INTEGER NOT NULL DEFAULT 0
+   )`,
+  `CREATE TABLE IF NOT EXISTS trivia_partidas (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     trivia_id INTEGER NOT NULL,
+     participante TEXT NOT NULL DEFAULT '',
+     puntaje INTEGER NOT NULL DEFAULT 0,
+     total INTEGER NOT NULL DEFAULT 0,
+     sesion TEXT NOT NULL DEFAULT '',
+     created_at TEXT DEFAULT (datetime('now'))
+   )`,
 ];
 
 // Se ejecuta una vez por instancia: crea el esquema si falta y completa las
@@ -102,6 +226,26 @@ async function preparar(c: Client) {
         `ALTER TABLE ${tabla} ADD COLUMN evento_id INTEGER NOT NULL DEFAULT 1`
       );
     }
+  }
+
+  const columnas = await c.execute("PRAGMA table_info(eventos)");
+  const faltantes: Record<string, string> = {
+    pantalla_token: "TEXT NOT NULL DEFAULT ''",
+    modulos: "TEXT NOT NULL DEFAULT ''",
+  };
+  for (const [nombre, tipo] of Object.entries(faltantes)) {
+    if (!columnas.rows.some((f) => f.name === nombre)) {
+      await c.execute(`ALTER TABLE eventos ADD COLUMN ${nombre} ${tipo}`);
+    }
+  }
+  // Cada matrimonio necesita su propia clave de pantalla, así que se completan
+  // de a uno los que vengan de una versión anterior.
+  const sinToken = await c.execute("SELECT id FROM eventos WHERE pantalla_token = ''");
+  for (const fila of sinToken.rows) {
+    await c.execute({
+      sql: "UPDATE eventos SET pantalla_token = ? WHERE id = ?",
+      args: [newToken(), Number(fila.id)],
+    });
   }
 
   const eventos = await c.execute("SELECT COUNT(*) AS total FROM eventos");
@@ -132,7 +276,105 @@ export type Evento = {
   banner: string;
   banner_texto: number;
   mapa: string;
+  /** JSON con los módulos del matrimonio y su orden (ver lib/modulos.ts). */
+  modulos: string;
+  pantalla_token: string;
   created_at: string;
+};
+
+export type Actividad = {
+  id: number;
+  evento_id: number;
+  titulo: string;
+  descripcion: string;
+  lugar: string;
+  hora: string;
+  dia: string;
+  orden: number;
+  created_at: string;
+};
+
+export type Encuesta = {
+  id: number;
+  evento_id: number;
+  titulo: string;
+  descripcion: string;
+  mensaje_final: string;
+  pide_nombre: number;
+  abierta: number;
+  orden: number;
+  created_at: string;
+};
+
+export type TipoPregunta = "corta" | "parrafo" | "unica" | "multiple" | "escala" | "si_no";
+
+export type PreguntaEncuesta = {
+  id: number;
+  encuesta_id: number;
+  texto: string;
+  tipo: TipoPregunta;
+  /** JSON con las alternativas cuando el tipo las necesita. */
+  opciones: string;
+  obligatoria: number;
+  orden: number;
+};
+
+export type Votacion = {
+  id: number;
+  evento_id: number;
+  titulo: string;
+  descripcion: string;
+  multiple: number;
+  resultados: "siempre" | "al_cerrar" | "nunca";
+  abierta: number;
+  orden: number;
+  created_at: string;
+};
+
+export type OpcionVotacion = {
+  id: number;
+  votacion_id: number;
+  texto: string;
+  imagen: string;
+  orden: number;
+};
+
+export type Sorteo = {
+  id: number;
+  evento_id: number;
+  titulo: string;
+  premio: string;
+  fuente: "invitados" | "mensajes" | "fotos" | "lista";
+  lista: string;
+  cantidad: number;
+  excluir_anteriores: number;
+  publicado: number;
+  /** JSON con los nombres que salieron. */
+  ganadores: string;
+  ejecutado_at: string;
+  created_at: string;
+};
+
+export type Trivia = {
+  id: number;
+  evento_id: number;
+  titulo: string;
+  descripcion: string;
+  abierta: number;
+  orden: number;
+  created_at: string;
+};
+
+export type PreguntaTrivia = {
+  id: number;
+  trivia_id: number;
+  enunciado: string;
+  /** JSON con las alternativas. */
+  opciones: string;
+  /** JSON con los índices correctos. */
+  correctas: string;
+  explicacion: string;
+  orden: number;
 };
 
 export type Guest = {

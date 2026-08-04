@@ -1,4 +1,6 @@
 // Íconos exportados del Figma "flujo desde el QR" (fill original #58595B -> currentColor).
+// Los módulos que no venían en ese diseño (agenda, encuestas, votaciones,
+// sorteos, trivia) usan íconos de trazo dibujados aquí, al final del archivo.
 type IconProps = { className?: string };
 
 export function IconCopas({ className = "size-8" }: IconProps) {
@@ -58,4 +60,100 @@ export function IconPalomas({ className = "size-6" }: IconProps) {
       <path d="M21.6987 1.97372C21.7061 1.90719 21.7135 1.84064 21.7135 1.77411C21.7135 0.790956 20.9152 0 19.932 0C19.3776 0 18.8823 0.258714 18.5571 0.65789C18.2318 0.258714 17.7365 0 17.1821 0C16.199 0 15.4006 0.798356 15.4006 1.78151C15.4006 1.84804 15.4006 1.91456 15.408 1.95892C15.5632 4.04351 18.1948 6.08375 18.3131 6.17246C18.387 6.2242 18.4684 6.25376 18.5571 6.25376C18.6458 6.25376 18.7271 6.2242 18.801 6.17246C18.9119 6.08375 21.5509 4.0509 21.6987 1.98109V1.97372ZM18.5497 5.32974C17.9213 4.7975 16.3025 3.28952 16.199 1.87761C16.199 1.84065 16.199 1.81107 16.199 1.77411C16.199 1.23449 16.6351 0.798343 17.1747 0.798343C17.7144 0.798343 18.1505 1.23449 18.1505 1.77411C18.1505 1.99588 18.3279 2.1733 18.5497 2.1733C18.7714 2.1733 18.9489 1.99588 18.9489 1.77411C18.9489 1.23449 19.385 0.798343 19.9246 0.798343C20.4643 0.798343 20.9004 1.23449 20.9004 1.77411C20.9004 1.81107 20.9004 1.84065 20.893 1.89979C20.7895 3.29691 19.1706 4.8049 18.5497 5.32974Z" />
     </svg>
   );
+}
+
+// Íconos de trazo para los módulos que no venían en el Figma. Comparten el
+// mismo lienzo (24×24) y grosor para que se vean como una familia.
+function Trazo({
+  className = "size-8",
+  children,
+}: IconProps & { children: React.ReactNode }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.3}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden
+    >
+      {children}
+    </svg>
+  );
+}
+
+export function IconAgenda({ className }: IconProps) {
+  return (
+    <Trazo className={className}>
+      <rect x="3" y="5" width="18" height="16" rx="2.5" />
+      <path d="M3 9.5h18M8 3v4M16 3v4" />
+      <path d="M7.5 13h3M7.5 17h3M14 13h2.5M14 17h2.5" />
+    </Trazo>
+  );
+}
+
+export function IconEncuesta({ className }: IconProps) {
+  return (
+    <Trazo className={className}>
+      <path d="M8 4H6.5A1.5 1.5 0 0 0 5 5.5v14A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5v-14A1.5 1.5 0 0 0 17.5 4H16" />
+      <rect x="8" y="2.5" width="8" height="3.5" rx="1.2" />
+      <path d="M8.5 11l1.6 1.6L13 9.7M8.5 16.5l1.6 1.6L13 15.2M15 11.6h1.5M15 17.1h1.5" />
+    </Trazo>
+  );
+}
+
+export function IconVotacion({ className }: IconProps) {
+  return (
+    <Trazo className={className}>
+      <path d="M4 11.5h16a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1Z" />
+      <path d="M9 11.5v1.8h6v-1.8" />
+      <path d="M7.5 8.6V4.2a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v4.4" />
+      <path d="M10 6.2l1.4 1.4L14.5 4.6" />
+    </Trazo>
+  );
+}
+
+export function IconSorteo({ className }: IconProps) {
+  return (
+    <Trazo className={className}>
+      <rect x="3" y="9.5" width="18" height="4" rx="1" />
+      <path d="M4.5 13.5v6A1.5 1.5 0 0 0 6 21h12a1.5 1.5 0 0 0 1.5-1.5v-6" />
+      <path d="M12 9.5V21" />
+      <path d="M12 9.5S10.9 4 8.4 4a2.2 2.2 0 0 0 0 5.5H12Zm0 0s1.1-5.5 3.6-5.5a2.2 2.2 0 0 1 0 5.5H12Z" />
+    </Trazo>
+  );
+}
+
+export function IconTrivia({ className }: IconProps) {
+  return (
+    <Trazo className={className}>
+      <path d="M12 3.2c-4.6 0-8.3 3-8.3 6.8 0 2.2 1.3 4.2 3.3 5.5v3.6l3.3-2.1c.6.1 1.1.1 1.7.1 4.6 0 8.3-3 8.3-6.8s-3.7-7.1-8.3-7.1Z" />
+      <path d="M10.1 8.3a2 2 0 0 1 3.8.8c0 1.4-1.9 1.6-1.9 2.9" />
+      <path d="M12 13.9v.1" />
+    </Trazo>
+  );
+}
+
+// Un ícono por módulo, para que las tarjetas y los atajos se armen solos a
+// partir del catálogo (lib/modulos.ts).
+const POR_MODULO = {
+  mesa: IconCopas,
+  mensajes: IconSobre,
+  fotos: IconCamara,
+  mapa: IconMapa,
+  agenda: IconAgenda,
+  encuestas: IconEncuesta,
+  votaciones: IconVotacion,
+  sorteos: IconSorteo,
+  trivia: IconTrivia,
+} as const;
+
+export function IconoModulo({
+  id,
+  className,
+}: IconProps & { id: keyof typeof POR_MODULO }) {
+  const Icono = POR_MODULO[id];
+  return <Icono className={className} />;
 }

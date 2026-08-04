@@ -4,13 +4,12 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { urlArchivo } from "@/lib/urls";
 import type { Evento } from "@/lib/db";
+import Paleta from "./Paleta";
 
-const COLORES: { campo: keyof Evento; label: string }[] = [
-  { campo: "color_fondo", label: "Fondo" },
-  { campo: "color_rosa", label: "Botones" },
-  { campo: "color_card", label: "Tarjetas" },
-  { campo: "color_texto", label: "Texto" },
-  { campo: "color_dorado", label: "Nombres" },
+const MODOS = [
+  { valor: "todo", label: "Fotos y mensajes" },
+  { valor: "fotos", label: "Solo fotos" },
+  { valor: "mensajes", label: "Solo mensajes" },
 ];
 
 export default function Ajustes({
@@ -24,11 +23,28 @@ export default function Ajustes({
   const [form, setForm] = useState(evento);
   const [estado, setEstado] = useState("");
   const [subiendo, setSubiendo] = useState("");
+  const [modo, setModo] = useState("todo");
+  const [oscuro, setOscuro] = useState(false);
 
-  const urlPublica =
-    typeof window !== "undefined"
-      ? `${window.location.origin}/${evento.slug}`
-      : `/${evento.slug}`;
+  const origen = typeof window !== "undefined" ? window.location.origin : "";
+  const urlPublica = `${origen}/${evento.slug}`;
+  const urlPantalla =
+    `${origen}/pantalla/${evento.slug}?k=${form.pantalla_token}` +
+    (modo === "todo" ? "" : `&modo=${modo}`) +
+    (oscuro ? "&fondo=oscuro" : "");
+
+  async function nuevaClave() {
+    if (!confirm("El enlace actual de la pantalla dejará de funcionar. ¿Seguir?")) return;
+    const res = await fetch(`/api/eventos/${evento.slug}/pantalla`, { method: "POST" });
+    if (!res.ok) {
+      setEstado("No pudimos cambiar la clave.");
+      return;
+    }
+    const actualizado: Evento = await res.json();
+    setForm(actualizado);
+    onGuardado(actualizado);
+    setEstado("Clave nueva: el enlace anterior ya no sirve.");
+  }
 
   async function guardar(cambios: Partial<Evento>, mensaje = "Guardado") {
     setEstado("Guardando…");
@@ -134,24 +150,13 @@ export default function Ajustes({
       </section>
 
       <section>
-        <h2 className="mb-1 font-medium">Colores</h2>
-        <p className="mb-3 text-sm text-neutral-500">
-          Se aplican al sitio de los invitados al instante.
-        </p>
-        <div className="flex flex-wrap gap-4">
-          {COLORES.map(({ campo, label }) => (
-            <label key={campo} className="text-sm">
-              <span className="mb-1 block text-neutral-500">{label}</span>
-              <input
-                type="color"
-                value={String(form[campo])}
-                onChange={(e) => setForm({ ...form, [campo]: e.target.value })}
-                onBlur={(e) => guardar({ [campo]: e.target.value }, "Color guardado")}
-                className="h-10 w-16 cursor-pointer rounded border border-neutral-300"
-              />
-            </label>
-          ))}
-        </div>
+        <Paleta
+          evento={evento}
+          onGuardado={(actualizado) => {
+            setForm(actualizado);
+            onGuardado(actualizado);
+          }}
+        />
       </section>
 
       <section>
@@ -278,6 +283,64 @@ export default function Ajustes({
               Copiar dirección
             </button>
           </div>
+        </div>
+      </section>
+
+      <section>
+        <h2 className="mb-1 font-medium">Pantalla del salón</h2>
+        <p className="mb-3 text-sm text-neutral-500">
+          Para proyectar en el telón o la pantalla LED: va rotando las fotos y los mensajes
+          que llegan, y muestra el QR al lado para que se sumen más invitados. El enlace trae
+          su propia clave, así que en el computador del salón no hay que escribir la
+          contraseña del panel.
+        </p>
+        <div className="mb-3 flex flex-wrap gap-2">
+          {MODOS.map(({ valor, label }) => (
+            <button
+              key={valor}
+              onClick={() => setModo(valor)}
+              className={`rounded-lg border px-3 py-1.5 text-sm ${
+                modo === valor
+                  ? "border-neutral-900 bg-neutral-900 text-white"
+                  : "border-neutral-300 hover:bg-neutral-50"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+          <label className="ml-2 flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={oscuro}
+              onChange={(e) => setOscuro(e.target.checked)}
+            />
+            Fondo oscuro (para salones a oscuras)
+          </label>
+        </div>
+        <p className="mb-3 truncate rounded-lg bg-neutral-100 px-3 py-2 font-mono text-xs text-neutral-600">
+          {urlPantalla}
+        </p>
+        <div className="flex flex-wrap gap-2 text-sm">
+          <a
+            href={urlPantalla}
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-lg bg-neutral-900 px-4 py-2 text-white hover:bg-neutral-700"
+          >
+            Abrir pantalla ↗
+          </a>
+          <button
+            onClick={() => navigator.clipboard?.writeText(urlPantalla)}
+            className="rounded-lg border border-neutral-300 px-4 py-2 hover:bg-neutral-50"
+          >
+            Copiar enlace
+          </button>
+          <button
+            onClick={nuevaClave}
+            className="rounded-lg border border-neutral-300 px-4 py-2 text-neutral-500 hover:bg-neutral-50"
+          >
+            Cambiar la clave
+          </button>
         </div>
       </section>
 

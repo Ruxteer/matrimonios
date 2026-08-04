@@ -21,9 +21,14 @@ export function checkPassword(intento: string): boolean {
   return password().length > 0 && crypto.timingSafeEqual(hash(intento), hash(password()));
 }
 
-export function isAdmin(req: NextRequest): boolean {
-  const cookie = req.cookies.get("admin")?.value ?? "";
+// Sirve para las rutas de API (NextRequest) y también para los componentes de
+// servidor, que leen la cookie con cookies() de next/headers.
+export function cookieAdminValida(cookie: string): boolean {
   return password().length > 0 && crypto.timingSafeEqual(hash(cookie), hash(sessionToken()));
+}
+
+export function isAdmin(req: NextRequest): boolean {
+  return cookieAdminValida(req.cookies.get("admin")?.value ?? "");
 }
 
 export function noAutorizado(): NextResponse {

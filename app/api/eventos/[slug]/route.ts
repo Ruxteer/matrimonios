@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAdmin, noAutorizado } from "@/lib/auth";
-import { actualizarEvento, eliminarEvento, getEvento, resumenEvento } from "@/lib/eventos";
+import {
+  actualizarEvento,
+  eliminarEvento,
+  eventoPublico,
+  getEvento,
+  resumenEvento,
+} from "@/lib/eventos";
 
 export const dynamic = "force-dynamic";
 
@@ -10,11 +16,7 @@ export async function GET(req: NextRequest, { params }: Ctx) {
   const { slug } = await params;
   const evento = await getEvento(slug);
   if (!evento) return NextResponse.json({ error: "no existe" }, { status: 404 });
-  if (!isAdmin(req)) {
-    const { id, ...publico } = evento;
-    void id;
-    return NextResponse.json(publico);
-  }
+  if (!isAdmin(req)) return NextResponse.json(eventoPublico(evento));
   return NextResponse.json({ ...evento, resumen: await resumenEvento(evento.id) });
 }
 
