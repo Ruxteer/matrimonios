@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Evento } from "@/lib/db";
+import type { EventoPanel } from "@/lib/eventos";
 import { COLORES, PALETAS, type Paleta as ColoresPaleta } from "@/lib/config";
 import { aclarar, colorValido, oscurecer, textoSobre } from "@/lib/colores";
 
@@ -19,8 +19,8 @@ export default function Paleta({
   evento,
   onGuardado,
 }: {
-  evento: Evento;
-  onGuardado: (e: Evento) => void;
+  evento: EventoPanel;
+  onGuardado: (e: EventoPanel) => void;
 }) {
   const [form, setForm] = useState<Record<Campo, string>>({
     color_fondo: evento.color_fondo,

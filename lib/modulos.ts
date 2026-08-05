@@ -1,5 +1,8 @@
 import type { Evento } from "./db";
 
+// Lo único que necesita saber un módulo del matrimonio.
+type DatosDeModulos = Pick<Evento, "modulos" | "mapa">;
+
 // Catálogo de módulos del producto. Cada matrimonio decide cuáles muestra y en
 // qué orden (columna `modulos` de la tabla eventos, JSON). Agregar un módulo
 // nuevo aquí lo deja disponible en el panel sin tocar ninguna otra pantalla.
@@ -129,7 +132,7 @@ type Guardado = { id: ModuloId; activo: boolean };
 // Lee la configuración guardada y la completa con el catálogo: las bases
 // anteriores (columna vacía) y los módulos que se agreguen después quedan con
 // su valor por defecto en vez de desaparecer.
-function leer(evento: Evento): Guardado[] {
+function leer(evento: DatosDeModulos): Guardado[] {
   let crudo: unknown = null;
   try {
     crudo = JSON.parse(evento.modulos || "[]");
@@ -153,18 +156,18 @@ function leer(evento: Evento): Guardado[] {
 }
 
 /** Todos los módulos en el orden del matrimonio, encendidos y apagados. */
-export function modulosDeEvento(evento: Evento): { modulo: Modulo; activo: boolean }[] {
+export function modulosDeEvento(evento: DatosDeModulos): { modulo: Modulo; activo: boolean }[] {
   return leer(evento).map((f) => ({ modulo: definicion(f.id), activo: f.activo }));
 }
 
 /** Solo los que se le muestran al invitado, en orden. */
-export function modulosActivos(evento: Evento): Modulo[] {
+export function modulosActivos(evento: DatosDeModulos): Modulo[] {
   return modulosDeEvento(evento)
     .filter(({ modulo, activo }) => activo && (!modulo.requiere || evento[modulo.requiere]))
     .map(({ modulo }) => modulo);
 }
 
-export function moduloActivo(evento: Evento, id: ModuloId): boolean {
+export function moduloActivo(evento: DatosDeModulos, id: ModuloId): boolean {
   return modulosActivos(evento).some((m) => m.id === id);
 }
 

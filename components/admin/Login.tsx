@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { PRODUCTO } from "@/lib/config";
 
-export default function Login({ onOk }: { onOk: () => void }) {
+export default function Login({ onOk, slug }: { onOk: () => void; slug?: string }) {
   const [pass, setPass] = useState("");
   const [verla, setVerla] = useState(false);
   const [enviando, setEnviando] = useState(false);
@@ -16,7 +16,7 @@ export default function Login({ onOk }: { onOk: () => void }) {
     const res = await fetch("/api/admin/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password: pass }),
+      body: JSON.stringify({ password: pass, slug }),
     });
     setEnviando(false);
     if (!res.ok) {
@@ -50,7 +50,9 @@ export default function Login({ onOk }: { onOk: () => void }) {
         <form onSubmit={entrar} className="w-full max-w-sm">
           <h1 className="font-serif text-3xl">Entrar al panel</h1>
           <p className="mt-2 text-sm text-neutral-500">
-            Es la misma contraseña para todos los matrimonios.
+            {slug
+              ? "La clave de este matrimonio, o la de administración."
+              : "La contraseña de administración."}
           </p>
 
           <label className="mt-10 block">

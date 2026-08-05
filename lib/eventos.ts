@@ -1,5 +1,7 @@
 import crypto from "crypto";
+import type { NextRequest } from "next/server";
 import { consultar, ejecutar, newToken, uno, Evento } from "./db";
+import { esAdminDeEvento, eventoDeLaSesion, guardarClave } from "./auth";
 import { COLORES } from "./config";
 import { borrarArchivo } from "./archivos";
 import { normalizarModulos } from "./modulos";
@@ -201,13 +203,58 @@ export function tokenPantallaValido(evento: Evento, intento: string): boolean {
   return crypto.timingSafeEqual(hash(intento), hash(guardado));
 }
 
-// Todo lo que se le entrega al navegador de un invitado pasa por aquí: la
-// clave de la pantalla y el id interno no salen del servidor.
+// Todo lo que se le entrega al navegador de un invitado pasa por aquí: el id
+// interno, la clave de la pantalla y la de los novios no salen del servidor.
 export function eventoPublico(evento: Evento) {
-  const { id, pantalla_token, ...publico } = evento;
+  const { id, pantalla_token, clave, ...publico } = evento;
   void id;
   void pantalla_token;
+  void clave;
   return publico;
+}
+
+// Para las rutas que no llevan el matrimonio en la dirección (subir una imagen,
+// bajar la planilla): reconoce de qué matrimonio viene la sesión y comprueba
+// que la cookie sea suya de verdad, no solo que traiga un número.
+export async function eventoDeSesion(req: NextRequest): Promise<Evento | null> {
+  const id = eventoDeLaSesion(req);
+  if (!id) return null;
+  const evento = await uno<Evento>("SELECT * FROM eventos WHERE id = ?", [id]);
+  return evento && esAdminDeEvento(req, evento) ? evento : null;
+}
+
+/**
+ * El matrimonio tal como lo ve el panel: sin el hash de la clave de los novios,
+ * solo si está puesta. `maestra` dice si quien mira entró con la clave de
+ * administración, para esconder lo que los novios no pueden hacer.
+ */
+export type EventoPanel = Omit<Evento, "clave"> & {
+  tiene_clave: boolean;
+  maestra?: boolean;
+};
+
+// Lo que ve el panel: necesita el id y la clave de la pantalla, pero de la
+// clave de los novios solo si está puesta o no. El hash no sale de aquí.
+export function eventoParaPanel(evento: Evento): EventoPanel {
+  const { clave, ...resto } = evento;
+  return { ...resto, tiene_clave: Boolean(clave) };
+}
+
+// Guarda la clave de los novios ya convertida en hash, o la borra con "".
+export async function definirClaveEvento(
+  evento: Evento,
+  clave: string
+): Promise<EventoPanel | null> {
+  let guardar = "";
+  if (clave.trim()) {
+    const preparada = guardarClave(clave);
+    if (!preparada) return null;
+    guardar = preparada;
+  }
+  await ejecutar("UPDATE eventos SET clave = ? WHERE id = ?", [guardar, evento.id]);
+  return eventoParaPanel(
+    (await uno<Evento>("SELECT * FROM eventos WHERE id = ?", [evento.id]))!
+  );
 }
 
 export async function resumenEvento(id: number) {

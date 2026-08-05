@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { consultar, ejecutar, uno } from "@/lib/db";
 import type { Encuesta, PreguntaEncuesta, TipoPregunta } from "@/lib/db";
-import { isAdmin, noAutorizado } from "@/lib/auth";
+import { noAutorizado, puedeAdministrar } from "@/lib/auth";
 import { getEvento } from "@/lib/eventos";
 
 export const dynamic = "force-dynamic";
@@ -115,10 +115,10 @@ async function conPreguntas(encuestaId: number) {
 }
 
 export async function PATCH(req: NextRequest, { params }: Ctx) {
-  if (!isAdmin(req)) return noAutorizado();
   const { slug, id } = await params;
   const evento = await getEvento(slug);
   if (!evento) return NextResponse.json({ error: "no existe" }, { status: 404 });
+  if (!puedeAdministrar(req, evento)) return noAutorizado();
 
   const encuestaId = Number(id);
   const existe = await uno<{ id: number }>(
@@ -174,10 +174,10 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
 // Borrar la encuesta se lleva también lo que contestaron los invitados: no
 // queda nada colgando de una encuesta que ya no existe.
 export async function DELETE(req: NextRequest, { params }: Ctx) {
-  if (!isAdmin(req)) return noAutorizado();
   const { slug, id } = await params;
   const evento = await getEvento(slug);
   if (!evento) return NextResponse.json({ error: "no existe" }, { status: 404 });
+  if (!puedeAdministrar(req, evento)) return noAutorizado();
 
   const encuestaId = Number(id);
   const existe = await uno<{ id: number }>(

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import ExcelJS from "exceljs";
 import { consultar, db, newToken } from "@/lib/db";
-import { isAdmin, noAutorizado } from "@/lib/auth";
+import { noAutorizado, puedeAdministrar } from "@/lib/auth";
 import { getEvento } from "@/lib/eventos";
 
 export const dynamic = "force-dynamic";
@@ -90,10 +90,10 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ) {
-  if (!isAdmin(req)) return noAutorizado();
   const { slug } = await params;
   const evento = await getEvento(slug);
   if (!evento) return NextResponse.json({ error: "no existe" }, { status: 404 });
+  if (!puedeAdministrar(req, evento)) return noAutorizado();
 
   const form = await req.formData();
   const file = form.get("file");

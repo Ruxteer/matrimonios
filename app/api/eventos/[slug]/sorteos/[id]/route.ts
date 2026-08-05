@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ejecutar, uno, type Sorteo } from "@/lib/db";
-import { isAdmin, noAutorizado } from "@/lib/auth";
+import { noAutorizado, puedeAdministrar } from "@/lib/auth";
 import { getEvento } from "@/lib/eventos";
 
 export const dynamic = "force-dynamic";
@@ -26,10 +26,10 @@ const EDITABLE: Record<string, (valor: unknown) => string | number | null> = {
 };
 
 export async function PATCH(req: NextRequest, { params }: Ctx) {
-  if (!isAdmin(req)) return noAutorizado();
   const { slug, id } = await params;
   const evento = await getEvento(slug);
   if (!evento) return NextResponse.json({ error: "no existe" }, { status: 404 });
+  if (!puedeAdministrar(req, evento)) return noAutorizado();
 
   const body = await req.json().catch(() => null);
   const sets: string[] = [];
@@ -57,10 +57,10 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
 }
 
 export async function DELETE(req: NextRequest, { params }: Ctx) {
-  if (!isAdmin(req)) return noAutorizado();
   const { slug, id } = await params;
   const evento = await getEvento(slug);
   if (!evento) return NextResponse.json({ error: "no existe" }, { status: 404 });
+  if (!puedeAdministrar(req, evento)) return noAutorizado();
 
   const res = await ejecutar("DELETE FROM sorteos WHERE id = ? AND evento_id = ?", [
     Number(id),

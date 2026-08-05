@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAdmin, noAutorizado } from "@/lib/auth";
-import { crearEvento, listarEventos, resumenEvento } from "@/lib/eventos";
+import {
+  crearEvento,
+  eventoParaPanel,
+  listarEventos,
+  resumenEvento,
+} from "@/lib/eventos";
 
 export const dynamic = "force-dynamic";
 
@@ -8,7 +13,10 @@ export async function GET(req: NextRequest) {
   if (!isAdmin(req)) return noAutorizado();
   const eventos = await listarEventos();
   const conResumen = await Promise.all(
-    eventos.map(async (e) => ({ ...e, resumen: await resumenEvento(e.id) }))
+    eventos.map(async (e) => ({
+      ...eventoParaPanel(e),
+      resumen: await resumenEvento(e.id),
+    }))
   );
   return NextResponse.json(conResumen);
 }
@@ -30,5 +38,5 @@ export async function POST(req: NextRequest) {
     fecha: String(body?.fecha ?? ""),
     slug: String(body?.slug ?? ""),
   });
-  return NextResponse.json(evento, { status: 201 });
+  return NextResponse.json(eventoParaPanel(evento), { status: 201 });
 }

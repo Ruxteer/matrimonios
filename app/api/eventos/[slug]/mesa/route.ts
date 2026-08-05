@@ -28,6 +28,24 @@ export async function GET(
     [evento.id]
   );
 
+  // Mientras el invitado escribe se le ofrecen nombres parecidos, para que no
+  // tenga que escribirlo entero ni acertarle a la tilde. Van solo los nombres:
+  // la mesa y con quién se sienta se ven recién al elegir uno.
+  if (req.nextUrl.searchParams.get("sugerencias") === "1") {
+    if (q.length < 2) return NextResponse.json({ sugerencias: [] });
+    const empieza: string[] = [];
+    const contiene: string[] = [];
+    for (const g of invitados) {
+      const n = normalizar(g.nombre);
+      if (n.split(/\s+/).some((palabra) => palabra.startsWith(q))) empieza.push(g.nombre);
+      else if (n.includes(q)) contiene.push(g.nombre);
+    }
+    const orden = (a: string, b: string) => a.localeCompare(b, "es");
+    return NextResponse.json({
+      sugerencias: [...empieza.sort(orden), ...contiene.sort(orden)].slice(0, 6),
+    });
+  }
+
   const encontrados = invitados
     .filter((g) => {
       const n = normalizar(g.nombre);

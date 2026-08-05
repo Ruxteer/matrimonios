@@ -6,7 +6,7 @@ import { COLORES } from "@/lib/config";
 import type { Evento } from "@/lib/db";
 import type { DatosPantalla, FotoPantalla, MensajePantalla } from "@/lib/pantalla";
 
-export type EventoPantalla = Omit<Evento, "id" | "pantalla_token">;
+export type EventoPantalla = Omit<Evento, "id" | "pantalla_token" | "clave">;
 export type ModoPantalla = "todo" | "fotos" | "mensajes";
 
 // Ritmo del carrusel. Una foto aguanta más que un mensaje porque la gente la

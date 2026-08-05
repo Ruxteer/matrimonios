@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ejecutar, uno, type Actividad } from "@/lib/db";
-import { isAdmin, noAutorizado } from "@/lib/auth";
+import { noAutorizado, puedeAdministrar } from "@/lib/auth";
 import { getEvento } from "@/lib/eventos";
 
 export const dynamic = "force-dynamic";
@@ -16,10 +16,10 @@ const LARGOS: Record<string, number> = {
 };
 
 export async function PATCH(req: NextRequest, { params }: Ctx) {
-  if (!isAdmin(req)) return noAutorizado();
   const { slug, id } = await params;
   const evento = await getEvento(slug);
   if (!evento) return NextResponse.json({ error: "no existe" }, { status: 404 });
+  if (!puedeAdministrar(req, evento)) return noAutorizado();
 
   // La actividad tiene que ser de este matrimonio: el id por sí solo no basta.
   const actividad = await uno<Actividad>(
@@ -65,10 +65,10 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
 }
 
 export async function DELETE(req: NextRequest, { params }: Ctx) {
-  if (!isAdmin(req)) return noAutorizado();
   const { slug, id } = await params;
   const evento = await getEvento(slug);
   if (!evento) return NextResponse.json({ error: "no existe" }, { status: 404 });
+  if (!puedeAdministrar(req, evento)) return noAutorizado();
   const resultado = await ejecutar("DELETE FROM agenda WHERE id = ? AND evento_id = ?", [
     Number(id),
     evento.id,

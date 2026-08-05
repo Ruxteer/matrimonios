@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { consultar, ejecutar, uno } from "@/lib/db";
 import type { Encuesta, PreguntaEncuesta } from "@/lib/db";
-import { isAdmin, noAutorizado } from "@/lib/auth";
+import { noAutorizado, puedeAdministrar } from "@/lib/auth";
 import { getEvento } from "@/lib/eventos";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +21,7 @@ export async function GET(req: NextRequest, { params }: Ctx) {
   const evento = await getEvento(slug);
   if (!evento) return NextResponse.json({ error: "no existe" }, { status: 404 });
 
-  const admin = isAdmin(req);
+  const admin = puedeAdministrar(req, evento);
   const conteo = admin
     ? ", (SELECT COUNT(*) FROM encuesta_respuestas r WHERE r.encuesta_id = encuestas.id) AS respuestas"
     : "";
@@ -51,10 +51,10 @@ export async function GET(req: NextRequest, { params }: Ctx) {
 // La encuesta nace vacía y cerrada de contenido: las preguntas se arman después
 // desde el editor (PATCH), que es donde el organizador las ordena.
 export async function POST(req: NextRequest, { params }: Ctx) {
-  if (!isAdmin(req)) return noAutorizado();
   const { slug } = await params;
   const evento = await getEvento(slug);
   if (!evento) return NextResponse.json({ error: "no existe" }, { status: 404 });
+  if (!puedeAdministrar(req, evento)) return noAutorizado();
 
   const body = await req.json().catch(() => null);
   const titulo = String(body?.titulo ?? "").trim().slice(0, 120);

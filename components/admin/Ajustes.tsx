@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { urlArchivo } from "@/lib/urls";
-import type { Evento } from "@/lib/db";
+import type { EventoPanel } from "@/lib/eventos";
 import Paleta from "./Paleta";
 
 const MODOS = [
@@ -12,12 +12,23 @@ const MODOS = [
   { valor: "mensajes", label: "Solo mensajes" },
 ];
 
+// Una clave fácil de dictar por teléfono: dos palabras y un número.
+const PALABRAS = [
+  "anillo", "brindis", "cumbia", "flores", "jardin", "novios", "ramo",
+  "tarta", "valses", "abrazo", "fiesta", "sonrisa",
+];
+
+function claveSugerida(): string {
+  const azar = (n: number) => Math.floor(Math.random() * n);
+  return `${PALABRAS[azar(PALABRAS.length)]}-${PALABRAS[azar(PALABRAS.length)]}-${100 + azar(900)}`;
+}
+
 export default function Ajustes({
   evento,
   onGuardado,
 }: {
-  evento: Evento;
-  onGuardado: (e: Evento) => void;
+  evento: EventoPanel;
+  onGuardado: (e: EventoPanel) => void;
 }) {
   const router = useRouter();
   const [form, setForm] = useState(evento);
@@ -25,6 +36,7 @@ export default function Ajustes({
   const [subiendo, setSubiendo] = useState("");
   const [modo, setModo] = useState("todo");
   const [oscuro, setOscuro] = useState(false);
+  const [claveNueva, setClaveNueva] = useState("");
 
   const origen = typeof window !== "undefined" ? window.location.origin : "";
   const urlPublica = `${origen}/${evento.slug}`;
@@ -40,13 +52,13 @@ export default function Ajustes({
       setEstado("No pudimos cambiar la clave.");
       return;
     }
-    const actualizado: Evento = await res.json();
+    const actualizado: EventoPanel = await res.json();
     setForm(actualizado);
     onGuardado(actualizado);
     setEstado("Clave nueva: el enlace anterior ya no sirve.");
   }
 
-  async function guardar(cambios: Partial<Evento>, mensaje = "Guardado") {
+  async function guardar(cambios: Partial<EventoPanel>, mensaje = "Guardado") {
     setEstado("Guardando…");
     const res = await fetch(`/api/eventos/${evento.slug}`, {
       method: "PATCH",
@@ -57,11 +69,33 @@ export default function Ajustes({
       setEstado("No pudimos guardar los cambios.");
       return;
     }
-    const actualizado: Evento = await res.json();
+    const actualizado: EventoPanel = await res.json();
     setForm(actualizado);
     onGuardado(actualizado);
     setEstado(mensaje);
     if (actualizado.slug !== evento.slug) router.replace(`/admin/${actualizado.slug}`);
+  }
+
+  // La clave viaja para guardarse como hash; el panel nunca la recibe de vuelta.
+  async function cambiarClaveNovios(clave: string) {
+    if (!clave && !confirm("Los novios dejarán de poder entrar a su panel. ¿Seguir?")) {
+      return;
+    }
+    setEstado("Guardando…");
+    const res = await fetch(`/api/eventos/${evento.slug}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clave }),
+    });
+    const datos = await res.json();
+    if (!res.ok) {
+      setEstado(datos.error ?? "No pudimos guardar la clave.");
+      return;
+    }
+    setForm(datos);
+    onGuardado(datos);
+    setClaveNueva("");
+    setEstado(clave ? "Clave guardada. Anótala, no se puede volver a ver." : "Acceso quitado.");
   }
 
   async function subir(file: File, destino: "banner" | "mapa") {
@@ -121,26 +155,29 @@ export default function Ajustes({
             />
           </label>
         </div>
-        <label className="mt-3 block text-sm">
-          <span className="mb-1 block text-neutral-500">
-            Dirección web (cambiarla invalida los QR ya impresos)
-          </span>
-          <div className="flex items-center gap-2">
-            <span className="text-neutral-400">/</span>
-            <input
-              value={form.slug}
-              onChange={(e) => setForm({ ...form, slug: e.target.value })}
-              className="w-full max-w-xs rounded-lg border border-neutral-300 px-3 py-2 font-mono"
-            />
-          </div>
-        </label>
+        {/* Cambiar la dirección invalida los QR impresos: solo el administrador. */}
+        {evento.maestra && (
+          <label className="mt-3 block text-sm">
+            <span className="mb-1 block text-neutral-500">
+              Dirección web (cambiarla invalida los QR ya impresos)
+            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-neutral-400">/</span>
+              <input
+                value={form.slug}
+                onChange={(e) => setForm({ ...form, slug: e.target.value })}
+                className="w-full max-w-xs rounded-lg border border-neutral-300 px-3 py-2 font-mono"
+              />
+            </div>
+          </label>
+        )}
         <button
           onClick={() =>
             guardar({
               nombre1: form.nombre1,
               nombre2: form.nombre2,
               fecha: form.fecha,
-              slug: form.slug,
+              ...(evento.maestra ? { slug: form.slug } : {}),
             })
           }
           className="mt-4 rounded-lg bg-neutral-900 px-4 py-2 text-sm text-white hover:bg-neutral-700"
@@ -344,18 +381,73 @@ export default function Ajustes({
         </div>
       </section>
 
-      <section className="rounded-xl border border-rose-200 bg-rose-50 p-4">
-        <h2 className="mb-1 font-medium text-rose-900">Eliminar matrimonio</h2>
-        <p className="mb-3 text-sm text-rose-800">
-          Borra el matrimonio junto con sus invitados, mensajes y fotos.
+      <section>
+        <h2 className="mb-1 font-medium">Clave de los novios</h2>
+        <p className="mb-3 text-sm text-neutral-500">
+          Con esta clave los novios entran a este panel y solo a este: cargan su
+          agenda, crean sus votaciones y ven sus fotos, sin ver los demás matrimonios.
+          No pueden cambiar la dirección web ni eliminar el matrimonio.
         </p>
-        <button
-          onClick={eliminar}
-          className="rounded-lg bg-rose-600 px-4 py-2 text-sm text-white hover:bg-rose-700"
-        >
-          Eliminar
-        </button>
+        <p className="mb-3 text-sm">
+          {form.tiene_clave ? (
+            <span className="text-neutral-700">
+              Hay una clave puesta. No se puede ver: si se perdió, pon una nueva.
+            </span>
+          ) : (
+            <span className="text-neutral-500">
+              Todavía no tiene clave, así que solo entra el administrador.
+            </span>
+          )}
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="text"
+            value={claveNueva}
+            onChange={(e) => setClaveNueva(e.target.value)}
+            placeholder="Clave nueva (mínimo 6 caracteres)"
+            className="w-64 rounded-lg border border-neutral-300 px-3 py-2 text-sm"
+          />
+          <button
+            onClick={() => cambiarClaveNovios(claveNueva)}
+            disabled={claveNueva.trim().length < 6}
+            className="rounded-lg bg-neutral-900 px-4 py-2 text-sm text-white hover:bg-neutral-700 disabled:opacity-30"
+          >
+            {form.tiene_clave ? "Cambiar clave" : "Poner clave"}
+          </button>
+          <button
+            onClick={() => setClaveNueva(claveSugerida())}
+            className="rounded-lg border border-neutral-300 px-4 py-2 text-sm hover:bg-neutral-50"
+          >
+            Sugerir una
+          </button>
+          {form.tiene_clave && (
+            <button
+              onClick={() => cambiarClaveNovios("")}
+              className="rounded-lg border border-neutral-300 px-4 py-2 text-sm text-neutral-500 hover:bg-neutral-50"
+            >
+              Quitar el acceso
+            </button>
+          )}
+        </div>
+        <p className="mt-2 text-xs text-neutral-400">
+          Anótala antes de guardar: después no se puede recuperar, solo reemplazar.
+        </p>
       </section>
+
+      {evento.maestra && (
+        <section className="rounded-xl border border-rose-200 bg-rose-50 p-4">
+          <h2 className="mb-1 font-medium text-rose-900">Eliminar matrimonio</h2>
+          <p className="mb-3 text-sm text-rose-800">
+            Borra el matrimonio junto con sus invitados, mensajes y fotos.
+          </p>
+          <button
+            onClick={eliminar}
+            className="rounded-lg bg-rose-600 px-4 py-2 text-sm text-white hover:bg-rose-700"
+          >
+            Eliminar
+          </button>
+        </section>
+      )}
 
       {estado && <p className="text-sm text-neutral-500">{estado}</p>}
     </div>

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { consultar, ejecutar, uno } from "@/lib/db";
 import type { PreguntaEncuesta } from "@/lib/db";
-import { isAdmin, noAutorizado } from "@/lib/auth";
+import { noAutorizado, puedeAdministrar } from "@/lib/auth";
 import { getEvento } from "@/lib/eventos";
 
 export const dynamic = "force-dynamic";
@@ -120,10 +120,10 @@ export async function POST(req: NextRequest, { params }: Ctx) {
 
 // Las respuestas completas son del panel: es con lo que arma los resultados.
 export async function GET(req: NextRequest, { params }: Ctx) {
-  if (!isAdmin(req)) return noAutorizado();
   const { slug, id } = await params;
   const evento = await getEvento(slug);
   if (!evento) return NextResponse.json({ error: "no existe" }, { status: 404 });
+  if (!puedeAdministrar(req, evento)) return noAutorizado();
 
   const encuestaId = Number(id);
   const existe = await uno<{ id: number }>(

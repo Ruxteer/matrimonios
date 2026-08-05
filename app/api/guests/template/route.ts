@@ -1,11 +1,14 @@
 import ExcelJS from "exceljs";
 import { NextRequest } from "next/server";
 import { isAdmin, noAutorizado } from "@/lib/auth";
+import { eventoDeSesion } from "@/lib/eventos";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
-  if (!isAdmin(req)) return noAutorizado();
+  // Vale la clave maestra o la de cualquier matrimonio: sus novios también
+  // suben imágenes y bajan la planilla.
+  if (!isAdmin(req) && !(await eventoDeSesion(req))) return noAutorizado();
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet("Invitados");
   sheet.columns = [

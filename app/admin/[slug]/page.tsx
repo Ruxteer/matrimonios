@@ -14,7 +14,8 @@ import Sorteos from "@/components/admin/Sorteos";
 import Trivia from "@/components/admin/Trivia";
 import { urlArchivo } from "@/lib/urls";
 import { modulosActivos, type ModuloId } from "@/lib/modulos";
-import type { Evento, Guest } from "@/lib/db";
+import type { Guest } from "@/lib/db";
+import type { EventoPanel } from "@/lib/eventos";
 
 type Mensaje = { id: number; nombre: string; mensaje: string; created_at: string };
 type Foto = { id: number; archivo: string; created_at: string };
@@ -23,7 +24,7 @@ type Tab = ModuloId | "invitados" | "modulos" | "ajustes";
 export default function AdminEvento() {
   const { slug } = useParams<{ slug: string }>();
   const [tab, setTab] = useState<Tab>("invitados");
-  const [evento, setEvento] = useState<Evento | null>(null);
+  const [evento, setEvento] = useState<EventoPanel | null>(null);
   const [guests, setGuests] = useState<Guest[]>([]);
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
   const [fotos, setFotos] = useState<Foto[]>([]);
@@ -64,7 +65,7 @@ export default function AdminEvento() {
     if (res.ok) setFotos((fs) => fs.filter((f) => f.id !== id));
   }
 
-  if (authed === false) return <Login onOk={load} />;
+  if (authed === false) return <Login onOk={load} slug={slug} />;
   if (authed === null) return <p className="p-6 text-neutral-500">Cargando…</p>;
   if (!existe) {
     return (
@@ -99,9 +100,22 @@ export default function AdminEvento() {
 
   return (
     <main className="mx-auto max-w-6xl p-6">
-      <Link href="/admin" className="text-sm text-neutral-400 hover:text-neutral-700">
-        ← Todos los matrimonios
-      </Link>
+      {/* Los novios solo tienen su matrimonio: la lista completa no es para ellos. */}
+      {evento.maestra ? (
+        <Link href="/admin" className="text-sm text-neutral-400 hover:text-neutral-700">
+          ← Todos los matrimonios
+        </Link>
+      ) : (
+        <button
+          onClick={async () => {
+            await fetch("/api/admin/login", { method: "DELETE" });
+            setAuthed(false);
+          }}
+          className="text-sm text-neutral-400 hover:text-neutral-700"
+        >
+          Cerrar sesión
+        </button>
+      )}
 
       {/* Identidad del matrimonio que se está administrando */}
       <div className="mb-5 mt-2 flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b border-neutral-200 pb-4">

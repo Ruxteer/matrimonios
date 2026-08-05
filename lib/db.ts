@@ -59,6 +59,7 @@ const ESQUEMA = [
      mapa TEXT NOT NULL DEFAULT '',
      modulos TEXT NOT NULL DEFAULT '',
      pantalla_token TEXT NOT NULL DEFAULT '',
+     clave TEXT NOT NULL DEFAULT '',
      created_at TEXT DEFAULT (datetime('now'))
    )`,
   `CREATE TABLE IF NOT EXISTS guests (
@@ -232,6 +233,7 @@ async function preparar(c: Client) {
   const faltantes: Record<string, string> = {
     pantalla_token: "TEXT NOT NULL DEFAULT ''",
     modulos: "TEXT NOT NULL DEFAULT ''",
+    clave: "TEXT NOT NULL DEFAULT ''",
   };
   for (const [nombre, tipo] of Object.entries(faltantes)) {
     if (!columnas.rows.some((f) => f.name === nombre)) {
@@ -279,6 +281,8 @@ export type Evento = {
   /** JSON con los módulos del matrimonio y su orden (ver lib/modulos.ts). */
   modulos: string;
   pantalla_token: string;
+  /** Clave de los novios, guardada como "sal:hash". Vacía = solo entra la maestra. */
+  clave: string;
   created_at: string;
 };
 

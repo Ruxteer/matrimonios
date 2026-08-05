@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Evento } from "@/lib/db";
+import type { EventoPanel } from "@/lib/eventos";
 import { definicion, modulosDeEvento, type ModuloId } from "@/lib/modulos";
 
 type Fila = { id: ModuloId; activo: boolean };
@@ -10,8 +10,8 @@ export default function Modulos({
   evento,
   onGuardado,
 }: {
-  evento: Evento;
-  onGuardado: (e: Evento) => void;
+  evento: EventoPanel;
+  onGuardado: (e: EventoPanel) => void;
 }) {
   const [filas, setFilas] = useState<Fila[]>(() =>
     modulosDeEvento(evento).map(({ modulo, activo }) => ({ id: modulo.id, activo }))

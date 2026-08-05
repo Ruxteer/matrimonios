@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ejecutar, uno } from "@/lib/db";
-import { isAdmin, noAutorizado } from "@/lib/auth";
+import { noAutorizado, puedeAdministrar } from "@/lib/auth";
 import { getEvento } from "@/lib/eventos";
 import { borrarArchivo } from "@/lib/archivos";
 
@@ -11,10 +11,10 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ slug: string; id: string }> }
 ) {
-  if (!isAdmin(req)) return noAutorizado();
   const { slug, id } = await params;
   const evento = await getEvento(slug);
   if (!evento) return NextResponse.json({ error: "no existe" }, { status: 404 });
+  if (!puedeAdministrar(req, evento)) return noAutorizado();
 
   const foto = await uno<{ archivo: string }>(
     "SELECT archivo FROM photos WHERE id = ? AND evento_id = ?",
