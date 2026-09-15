@@ -1,50 +1,21 @@
 import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { consultar, ejecutar, uno, type Sorteo } from "@/lib/db";
+import { ejecutar, uno, type Sorteo } from "@/lib/db";
 import { noAutorizado, puedeAdministrar } from "@/lib/auth";
 import { getEvento } from "@/lib/eventos";
+import {
+  ganadoresAnteriores,
+  participantesDeSorteo,
+  type Resultado,
+} from "@/lib/sorteos";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 type Ctx = { params: Promise<{ slug: string; id: string }> };
 
-const clave = (nombre: string) => nombre.trim().toLowerCase();
-
-function leerGanadores(json: string): string[] {
-  try {
-    const valor = JSON.parse(json || "[]");
-    return Array.isArray(valor)
-      ? valor.filter((n): n is string => typeof n === "string")
-      : [];
-  } catch {
-    return [];
-  }
-}
-
-// Quiénes entran al bombo. No existe la fuente "fotos" del documento porque la
-// tabla photos no guarda quién subió cada imagen.
-async function participantes(sorteo: Sorteo, evento_id: number): Promise<string[]> {
-  if (sorteo.fuente === "lista") {
-    return sorteo.lista.split("\n").map((l) => l.trim());
-  }
-  if (sorteo.fuente === "mensajes") {
-    const filas = await consultar<{ nombre: string }>(
-      `SELECT DISTINCT TRIM(nombre) AS nombre FROM messages
-        WHERE evento_id = ? AND TRIM(nombre) <> '' ORDER BY nombre`,
-      [evento_id]
-    );
-    return filas.map((f) => f.nombre);
-  }
-  const filas = await consultar<{ nombre: string }>(
-    `SELECT DISTINCT TRIM(nombre) AS nombre FROM guests
-      WHERE evento_id = ? AND TRIM(nombre) <> '' ORDER BY nombre`,
-    [evento_id]
-  );
-  return filas.map((f) => f.nombre);
-}
-
 // Ejecutar de nuevo reemplaza el resultado anterior: el sorteo guarda solo lo
-// último que salió, con la hora en que se hizo.
+// último que salió, con la hora en que se hizo y entre cuántos.
 export async function POST(req: NextRequest, { params }: Ctx) {
   const { slug, id } = await params;
   const evento = await getEvento(slug);
@@ -59,32 +30,21 @@ export async function POST(req: NextRequest, { params }: Ctx) {
     return NextResponse.json({ error: "sorteo no encontrado" }, { status: 404 });
   }
 
-  const excluidos = new Set<string>();
-  if (sorteo.excluir_anteriores) {
-    const otros = await consultar<{ ganadores: string }>(
-      "SELECT ganadores FROM sorteos WHERE evento_id = ? AND id <> ? AND ganadores <> ''",
-      [evento.id, sorteo.id]
-    );
-    for (const otro of otros) {
-      for (const nombre of leerGanadores(otro.ganadores)) excluidos.add(clave(nombre));
-    }
-  }
-
-  const candidatos: string[] = [];
-  const vistos = new Set<string>();
-  for (const nombre of await participantes(sorteo, evento.id)) {
-    const k = clave(nombre);
-    if (!k || vistos.has(k) || excluidos.has(k)) continue;
-    vistos.add(k);
-    candidatos.push(nombre.trim());
-  }
+  const todos = await participantesDeSorteo(sorteo, evento.id);
+  const anteriores = sorteo.excluir_anteriores
+    ? await ganadoresAnteriores(evento.id, sorteo.id)
+    : null;
+  const candidatos = anteriores ? todos.filter((p) => !anteriores.yaGano(p)) : todos;
 
   if (!candidatos.length) {
     return NextResponse.json(
       {
-        error: excluidos.size
-          ? "No queda nadie por sortear: todos ya ganaron en otro sorteo."
-          : "No hay participantes en la fuente elegida.",
+        error:
+          todos.length && anteriores?.alguno
+            ? "No queda nadie por sortear: todos ya ganaron en otro sorteo."
+            : sorteo.fuente === "base"
+              ? "La base no tiene participantes con nombre. Revisa qué columna tiene el nombre."
+              : "No hay participantes en la fuente elegida.",
       },
       { status: 400 }
     );
@@ -101,23 +61,35 @@ export async function POST(req: NextRequest, { params }: Ctx) {
   }
 
   // Fisher-Yates con crypto.randomInt: el azar del sorteo tiene que poder
-  // defenderse frente a los invitados, y Math.random no da esa garantía.
+  // defenderse frente a los participantes, y Math.random no da esa garantía.
   const bombo = [...candidatos];
   for (let i = bombo.length - 1; i > 0; i--) {
     const j = crypto.randomInt(i + 1);
     [bombo[i], bombo[j]] = [bombo[j], bombo[i]];
   }
   const ganadores = bombo.slice(0, sorteo.cantidad);
+  // Los suplentes salen del mismo bombo, después de los ganadores. Si no alcanza
+  // para todos, se sacan los que haya.
+  const suplentes = bombo.slice(sorteo.cantidad, sorteo.cantidad + sorteo.cantidad_suplentes);
+
+  const detalle: Resultado[] = [
+    ...ganadores.map((p, i) => ({ ...p, suplente: false, orden: i + 1 })),
+    ...suplentes.map((p, i) => ({ ...p, suplente: true, orden: i + 1 })),
+  ];
 
   await ejecutar(
-    `UPDATE sorteos SET ganadores = ?, ejecutado_at = datetime('now')
+    `UPDATE sorteos SET ganadores = ?, suplentes = ?, detalle = ?, disponibles = ?,
+                        ejecutado_at = datetime('now')
       WHERE id = ? AND evento_id = ?`,
-    [JSON.stringify(ganadores), sorteo.id, evento.id]
+    [
+      JSON.stringify(ganadores.map((p) => p.nombre)),
+      JSON.stringify(suplentes.map((p) => p.nombre)),
+      JSON.stringify(detalle),
+      candidatos.length,
+      sorteo.id,
+      evento.id,
+    ]
   );
-  const actualizado = await uno<Sorteo>("SELECT * FROM sorteos WHERE id = ?", [
-    sorteo.id,
-  ]);
-  // `disponibles` es entre cuántos salió: no es lo mismo que el total de la
-  // fuente cuando se excluye a los que ya ganaron.
+  const actualizado = await uno<Sorteo>("SELECT * FROM sorteos WHERE id = ?", [sorteo.id]);
   return NextResponse.json({ ...actualizado, disponibles: candidatos.length });
 }

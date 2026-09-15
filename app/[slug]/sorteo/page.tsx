@@ -3,24 +3,17 @@ import { Atajos, Tarjeta, Titulo, Vacio } from "@/components/ui";
 import { consultar } from "@/lib/db";
 import { getEvento } from "@/lib/eventos";
 import { moduloActivo } from "@/lib/modulos";
+import { leerNombres } from "@/lib/sorteos";
 
+// Solo los nombres: el detalle con las columnas de la base (correos, RUT) es
+// del panel y nunca se lee aquí.
 type SorteoPublico = {
   id: number;
   titulo: string;
   premio: string;
   ganadores: string;
+  suplentes: string;
 };
-
-function leerGanadores(json: string): string[] {
-  try {
-    const valor = JSON.parse(json || "[]");
-    return Array.isArray(valor)
-      ? valor.filter((n): n is string => typeof n === "string")
-      : [];
-  } catch {
-    return [];
-  }
-}
 
 export default async function SorteoPage({
   params,
@@ -34,7 +27,7 @@ export default async function SorteoPage({
   // Pantalla de solo lectura: al invitado no se le pide nada, participa por
   // estar en la lista del sorteo.
   const sorteos = await consultar<SorteoPublico>(
-    `SELECT id, titulo, premio, ganadores FROM sorteos
+    `SELECT id, titulo, premio, ganadores, suplentes FROM sorteos
       WHERE evento_id = ? AND publicado = 1 ORDER BY id`,
     [evento.id]
   );
@@ -48,7 +41,8 @@ export default async function SorteoPage({
       ) : (
         <div className="space-y-4">
           {sorteos.map((sorteo) => {
-            const ganadores = leerGanadores(sorteo.ganadores);
+            const ganadores = leerNombres(sorteo.ganadores);
+            const suplentes = leerNombres(sorteo.suplentes);
             return (
               <Tarjeta key={sorteo.id} className="px-5 py-6 text-center">
                 <p className="font-serif text-sm font-bold">{sorteo.titulo}</p>
@@ -66,6 +60,11 @@ export default async function SorteoPage({
                         {nombre}
                       </p>
                     ))}
+                    {suplentes.length > 0 && (
+                      <p className="pt-3 text-xs opacity-70">
+                        Suplentes: {suplentes.join(", ")}
+                      </p>
+                    )}
                   </div>
                 ) : (
                   <p className="mt-4 text-xs opacity-60">Se sortea durante la fiesta</p>

@@ -55,6 +55,7 @@ const ESQUEMA = [
      color_texto TEXT NOT NULL DEFAULT '${COLORES.texto}',
      color_dorado TEXT NOT NULL DEFAULT '${COLORES.dorado}',
      banner TEXT NOT NULL DEFAULT '',
+     banner_movil TEXT NOT NULL DEFAULT '',
      banner_texto INTEGER NOT NULL DEFAULT 1,
      mapa TEXT NOT NULL DEFAULT '',
      modulos TEXT NOT NULL DEFAULT '',
@@ -182,8 +183,26 @@ const ESQUEMA = [
      publicado INTEGER NOT NULL DEFAULT 1,
      ganadores TEXT NOT NULL DEFAULT '',
      ejecutado_at TEXT NOT NULL DEFAULT '',
+     cantidad_suplentes INTEGER NOT NULL DEFAULT 0,
+     suplentes TEXT NOT NULL DEFAULT '',
+     detalle TEXT NOT NULL DEFAULT '',
+     disponibles INTEGER NOT NULL DEFAULT 0,
+     base_nombre TEXT NOT NULL DEFAULT '',
+     columnas TEXT NOT NULL DEFAULT '',
+     columna_nombre TEXT NOT NULL DEFAULT '',
+     columna_apellido TEXT NOT NULL DEFAULT '',
+     columna_clave TEXT NOT NULL DEFAULT '',
      created_at TEXT DEFAULT (datetime('now'))
    )`,
+  // Base de participantes importada desde Excel o CSV para un sorteo: cada fila
+  // guarda todas sus columnas como JSON, porque cada organizador trae las suyas.
+  `CREATE TABLE IF NOT EXISTS sorteo_participantes (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     sorteo_id INTEGER NOT NULL,
+     datos TEXT NOT NULL
+   )`,
+  `CREATE INDEX IF NOT EXISTS sorteo_participantes_sorteo
+     ON sorteo_participantes (sorteo_id)`,
 
   // Trivia: preguntas con alternativas y el puntaje de cada partida jugada.
   `CREATE TABLE IF NOT EXISTS trivias (
@@ -229,15 +248,35 @@ async function preparar(c: Client) {
     }
   }
 
-  const columnas = await c.execute("PRAGMA table_info(eventos)");
-  const faltantes: Record<string, string> = {
-    pantalla_token: "TEXT NOT NULL DEFAULT ''",
-    modulos: "TEXT NOT NULL DEFAULT ''",
-    clave: "TEXT NOT NULL DEFAULT ''",
+  // Columnas que se fueron agregando después: las bases creadas antes las
+  // reciben aquí, con su valor por defecto.
+  const TEXTO = "TEXT NOT NULL DEFAULT ''";
+  const NUMERO = "INTEGER NOT NULL DEFAULT 0";
+  const faltantes: Record<string, Record<string, string>> = {
+    eventos: {
+      pantalla_token: TEXTO,
+      modulos: TEXTO,
+      clave: TEXTO,
+      banner_movil: TEXTO,
+    },
+    sorteos: {
+      cantidad_suplentes: NUMERO,
+      suplentes: TEXTO,
+      detalle: TEXTO,
+      disponibles: NUMERO,
+      base_nombre: TEXTO,
+      columnas: TEXTO,
+      columna_nombre: TEXTO,
+      columna_apellido: TEXTO,
+      columna_clave: TEXTO,
+    },
   };
-  for (const [nombre, tipo] of Object.entries(faltantes)) {
-    if (!columnas.rows.some((f) => f.name === nombre)) {
-      await c.execute(`ALTER TABLE eventos ADD COLUMN ${nombre} ${tipo}`);
+  for (const [tabla, campos] of Object.entries(faltantes)) {
+    const existentes = await c.execute(`PRAGMA table_info(${tabla})`);
+    for (const [nombre, tipo] of Object.entries(campos)) {
+      if (!existentes.rows.some((f) => f.name === nombre)) {
+        await c.execute(`ALTER TABLE ${tabla} ADD COLUMN ${nombre} ${tipo}`);
+      }
     }
   }
   // Cada matrimonio necesita su propia clave de pantalla, así que se completan
@@ -275,7 +314,10 @@ export type Evento = {
   color_card: string;
   color_texto: string;
   color_dorado: string;
+  /** Banner para pantallas anchas; también se usa en el celular si no hay uno propio. */
   banner: string;
+  /** Banner para celular. Vacío = se usa el de escritorio. */
+  banner_movil: string;
   banner_texto: number;
   mapa: string;
   /** JSON con los módulos del matrimonio y su orden (ver lib/modulos.ts). */
@@ -348,14 +390,33 @@ export type Sorteo = {
   evento_id: number;
   titulo: string;
   premio: string;
-  fuente: "invitados" | "mensajes" | "fotos" | "lista";
+  fuente: "invitados" | "mensajes" | "fotos" | "lista" | "base";
   lista: string;
   cantidad: number;
   excluir_anteriores: number;
   publicado: number;
-  /** JSON con los nombres que salieron. */
+  /** JSON con los nombres que salieron. Es lo que se publica. */
   ganadores: string;
   ejecutado_at: string;
+  /** Cuántos suplentes se sacan además de los ganadores. */
+  cantidad_suplentes: number;
+  /** JSON con los nombres de los suplentes, en el orden en que salieron. */
+  suplentes: string;
+  /**
+   * JSON con ganadores y suplentes junto a todas sus columnas de la base. Solo
+   * para el panel y el acta: puede traer correos o RUT, nunca se publica.
+   */
+  detalle: string;
+  /** Entre cuántas personas salió el resultado. */
+  disponibles: number;
+  /** Nombre del archivo importado, para reconocerlo en el panel. */
+  base_nombre: string;
+  /** JSON con los encabezados de la base, en su orden. */
+  columnas: string;
+  columna_nombre: string;
+  columna_apellido: string;
+  /** Columna que distingue a cada persona (RUT, correo…). Vacía = el nombre. */
+  columna_clave: string;
   created_at: string;
 };
 

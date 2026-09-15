@@ -98,7 +98,7 @@ export default function Ajustes({
     setEstado(clave ? "Clave guardada. Anótala, no se puede volver a ver." : "Acceso quitado.");
   }
 
-  async function subir(file: File, destino: "banner" | "mapa") {
+  async function subir(file: File, destino: "banner" | "banner_movil" | "mapa") {
     setSubiendo(destino);
     const datos = new FormData();
     datos.append("file", file);
@@ -198,54 +198,92 @@ export default function Ajustes({
 
       <section>
         <h2 className="mb-1 font-medium">Banner</h2>
-        <p className="mb-3 text-sm text-neutral-500">
-          Sin banner propio se usa el marco floral del producto. Se recomienda una
-          imagen apaisada (por ejemplo 1440 × 200).
+        <p className="mb-4 text-sm text-neutral-500">
+          Uno para computador y otro para celular, porque la misma imagen no queda
+          bien en las dos proporciones. Si subes uno solo, se usa en ambos. Sin
+          ninguno se usa el marco floral del producto.
         </p>
-        {form.banner && (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
-            src={urlArchivo(form.banner)}
-            alt="Banner del matrimonio"
-            className="mb-3 w-full max-w-lg rounded-lg border border-neutral-200"
-          />
-        )}
-        <div className="flex flex-wrap items-center gap-3">
-          <label className="cursor-pointer rounded-lg border border-neutral-300 px-4 py-2 text-sm hover:bg-neutral-50">
-            {subiendo === "banner" ? "Subiendo…" : "Subir banner"}
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) subir(f, "banner");
-                e.target.value = "";
-              }}
-            />
-          </label>
-          {form.banner && (
-            <button
-              onClick={() => guardar({ banner: "" }, "Volvimos al marco por defecto")}
-              className="text-sm text-neutral-500 underline hover:text-neutral-800"
-            >
-              Usar el marco por defecto
-            </button>
-          )}
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={form.banner_texto === 1}
-              onChange={(e) =>
-                guardar(
-                  { banner_texto: e.target.checked ? 1 : 0 },
-                  "Listo"
-                )
-              }
-            />
-            Escribir los nombres y la fecha sobre el banner
-          </label>
+        <div className="grid gap-6 md:grid-cols-[2fr_1fr]">
+          {(
+            [
+              {
+                campo: "banner",
+                titulo: "Computador",
+                medida: "Apaisado y bajo, por ejemplo 2880 × 400.",
+                vista: "aspect-[36/5]",
+              },
+              {
+                campo: "banner_movil",
+                titulo: "Celular",
+                medida: "Más alto, por ejemplo 1236 × 600.",
+                vista: "aspect-[2/1] max-w-xs",
+              },
+            ] as const
+          ).map(({ campo, titulo, medida, vista }) => {
+            const propio = form[campo];
+            // Lo que se ve hoy en ese tamaño: el suyo, el del otro tamaño o nada.
+            const otro = form[campo === "banner" ? "banner_movil" : "banner"];
+            const actual = propio || otro;
+            return (
+              <div key={campo}>
+                <p className="mb-1 text-sm font-medium">{titulo}</p>
+                <p className="mb-2 text-xs text-neutral-500">{medida}</p>
+                <div
+                  className={`mb-2 w-full overflow-hidden rounded-lg border border-neutral-200 bg-neutral-50 ${vista}`}
+                >
+                  {actual ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={urlArchivo(actual)}
+                      alt={`Banner para ${titulo.toLowerCase()}`}
+                      className={`h-full w-full object-cover ${propio ? "" : "opacity-50"}`}
+                    />
+                  ) : (
+                    <p className="flex h-full items-center justify-center text-xs text-neutral-400">
+                      Marco por defecto
+                    </p>
+                  )}
+                </div>
+                {!propio && otro && (
+                  <p className="mb-2 text-xs text-neutral-500">
+                    Usando el de {campo === "banner" ? "celular" : "computador"}.
+                  </p>
+                )}
+                <div className="flex flex-wrap items-center gap-3">
+                  <label className="cursor-pointer rounded-lg border border-neutral-300 px-4 py-2 text-sm hover:bg-neutral-50">
+                    {subiendo === campo ? "Subiendo…" : propio ? "Cambiar" : "Subir"}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) subir(f, campo);
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                  {propio && (
+                    <button
+                      onClick={() => guardar({ [campo]: "" }, "Banner quitado")}
+                      className="text-sm text-neutral-500 underline hover:text-neutral-800"
+                    >
+                      Quitar
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
+        <label className="mt-4 flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={form.banner_texto === 1}
+            onChange={(e) => guardar({ banner_texto: e.target.checked ? 1 : 0 }, "Listo")}
+          />
+          Escribir los nombres y la fecha sobre el banner
+        </label>
       </section>
 
       <section>

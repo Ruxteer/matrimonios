@@ -66,49 +66,75 @@ function TextoEncabezado({
   );
 }
 
+// Banner propio subido desde el panel. Con <picture> el celular descarga solo
+// su imagen y no también la de escritorio. El texto se mide contra el alto de
+// la imagen que quedó (cqh), así sirve para cualquier proporción que suban.
+function BannerPropio({
+  evento,
+  movil,
+  escritorio,
+  alt,
+}: {
+  evento: Evento;
+  movil: string;
+  escritorio: string;
+  alt: string;
+}) {
+  return (
+    <div className="relative overflow-hidden">
+      <picture>
+        {/* 768px es el corte md de Tailwind, el mismo que usa el marco por defecto. */}
+        {escritorio !== movil && <source media="(min-width: 768px)" srcSet={escritorio} />}
+        <img src={movil} alt={alt} className="block w-full" />
+      </picture>
+      {evento.banner_texto === 1 && (
+        <div className="absolute inset-0" style={{ containerType: "size" }}>
+          <div
+            className="flex h-full flex-col items-center justify-center px-[6%] text-center"
+            style={{ color: color(evento.color_dorado, COLORES.dorado) }}
+          >
+            <p
+              className="font-serif font-bold"
+              style={{ fontSize: "8cqh", letterSpacing: "0.08em" }}
+            >
+              Matrimonio de
+            </p>
+            <p className="font-script leading-none" style={{ fontSize: "34cqh" }}>
+              {evento.nombre1}
+              <span style={{ fontSize: "0.55em" }}> y </span>
+              {evento.nombre2}
+            </p>
+            {evento.fecha && (
+              <p
+                className="font-serif font-bold"
+                style={{ fontSize: "12cqh", letterSpacing: "0.14em" }}
+              >
+                {evento.fecha}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function EventHeader({ evento }: { evento: Evento }) {
-  const banner = urlArchivo(evento.banner);
   const conTexto = evento.banner_texto === 1;
   const alt = `Matrimonio de ${evento.nombre1} y ${evento.nombre2}${
     evento.fecha ? `, ${evento.fecha}` : ""
   }`;
 
-  // Banner propio del matrimonio: una sola imagen para todos los tamaños. El
-  // texto se mide contra el alto del banner (cqh), así sirve para cualquier
-  // proporción de imagen que suban.
-  if (banner) {
+  // Un banner para pantallas anchas y otro para el celular, porque la misma
+  // imagen no queda bien en las dos proporciones. Si subieron uno solo, ese
+  // sirve para todo.
+  const escritorio = urlArchivo(evento.banner || evento.banner_movil);
+  const movil = urlArchivo(evento.banner_movil || evento.banner);
+
+  if (escritorio) {
     return (
-      <header className="relative overflow-hidden bg-white">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={banner} alt={alt} className="block w-full" />
-        {conTexto && (
-          <div className="absolute inset-0" style={{ containerType: "size" }}>
-            <div
-              className="flex h-full flex-col items-center justify-center px-[6%] text-center"
-              style={{ color: color(evento.color_dorado, COLORES.dorado) }}
-            >
-              <p
-                className="font-serif font-bold"
-                style={{ fontSize: "8cqh", letterSpacing: "0.08em" }}
-              >
-                Matrimonio de
-              </p>
-              <p className="font-script leading-none" style={{ fontSize: "34cqh" }}>
-                {evento.nombre1}
-                <span style={{ fontSize: "0.55em" }}> y </span>
-                {evento.nombre2}
-              </p>
-              {evento.fecha && (
-                <p
-                  className="font-serif font-bold"
-                  style={{ fontSize: "12cqh", letterSpacing: "0.14em" }}
-                >
-                  {evento.fecha}
-                </p>
-              )}
-            </div>
-          </div>
-        )}
+      <header className="relative bg-white">
+        <BannerPropio evento={evento} movil={movil} escritorio={escritorio} alt={alt} />
       </header>
     );
   }

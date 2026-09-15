@@ -73,7 +73,18 @@ export async function crearEvento(datos: {
   ]))!;
 }
 
-const CAMPOS_TEXTO = ["nombre1", "nombre2", "fecha", "banner", "mapa"] as const;
+const CAMPOS_TEXTO = [
+  "nombre1",
+  "nombre2",
+  "fecha",
+  "banner",
+  "banner_movil",
+  "mapa",
+] as const;
+
+// Los campos que guardan una imagen subida: al reemplazarla o quitarla, el
+// archivo anterior deja de servir y se borra del almacenamiento.
+const CAMPOS_IMAGEN = ["banner", "banner_movil", "mapa"] as const;
 const CAMPOS_COLOR = [
   "color_fondo",
   "color_rosa",
@@ -122,7 +133,18 @@ export async function actualizarEvento(
       evento.id,
     ]);
   }
-  return (await uno<Evento>("SELECT * FROM eventos WHERE id = ?", [evento.id]))!;
+  const actualizado = (await uno<Evento>("SELECT * FROM eventos WHERE id = ?", [
+    evento.id,
+  ]))!;
+
+  // Una imagen reemplazada queda huérfana en el almacenamiento. Solo se borra
+  // si ya no la usa ningún otro campo del matrimonio.
+  const enUso = new Set(CAMPOS_IMAGEN.map((campo) => actualizado[campo]));
+  for (const campo of CAMPOS_IMAGEN) {
+    const anterior = evento[campo];
+    if (anterior && !enUso.has(anterior)) await borrarArchivo(anterior);
+  }
+  return actualizado;
 }
 
 // Tablas que cuelgan de otra tabla y no del matrimonio: para borrarlas hay que
@@ -134,6 +156,7 @@ const HIJAS: [hija: string, campo: string, padre: string][] = [
   ["votos", "votacion_id", "votaciones"],
   ["trivia_preguntas", "trivia_id", "trivias"],
   ["trivia_partidas", "trivia_id", "trivias"],
+  ["sorteo_participantes", "sorteo_id", "sorteos"],
 ];
 
 const POR_EVENTO = [
@@ -180,6 +203,7 @@ export async function eliminarEvento(evento: Evento) {
     ...fotos.map((f) => f.archivo),
     ...imagenes.map((i) => i.imagen),
     evento.banner,
+    evento.banner_movil,
     evento.mapa,
   ]) {
     await borrarArchivo(archivo);
