@@ -24,17 +24,22 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   if (!isAdmin(req)) return noAutorizado();
   const body = await req.json().catch(() => null);
-  const nombre1 = String(body?.nombre1 ?? "").trim();
-  const nombre2 = String(body?.nombre2 ?? "").trim();
-  if (!nombre1 || !nombre2) {
+  const tipo = body?.tipo === "activacion" ? "activacion" : "matrimonio";
+  const titulo = String(body?.titulo ?? "").trim().slice(0, 200);
+  const nombre1 = String(body?.nombre1 ?? (tipo === "activacion" ? titulo : "")).trim().slice(0, 120);
+  const nombre2 = String(body?.nombre2 ?? "").trim().slice(0, 120);
+  if (tipo === "activacion" ? !titulo : !nombre1 || !nombre2) {
     return NextResponse.json(
-      { error: "faltan los nombres de los novios" },
+      { error: tipo === "activacion" ? "El nombre del evento es requerido." : "Faltan los nombres de los novios." },
       { status: 400 }
     );
   }
   const evento = await crearEvento({
     nombre1,
     nombre2,
+    tipo,
+    titulo,
+    descripcion: String(body?.descripcion ?? ""),
     fecha: String(body?.fecha ?? ""),
     slug: String(body?.slug ?? ""),
   });

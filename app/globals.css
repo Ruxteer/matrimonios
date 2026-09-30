@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* Colores por defecto del producto. Cada matrimonio los sobrescribe con los
+/* Colores por defecto del producto. Cada evento los sobrescribe con los
    suyos (ver ColoresEvento en components/EventShell.tsx). */
 :root {
   --background: #fef3f0;
@@ -35,6 +35,72 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-roboto), Roboto, Arial, sans-serif;
+}
+
+/* Activaciones: composición deportiva de las pantallas de registro y fotos.
+   Los colores siguen la configuración del evento; la tipografía es sans. */
+.event-activation {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 480px;
+  min-height: 100dvh;
+  margin-inline: auto;
+  background: var(--background);
+  box-shadow: 0 0 72px color-mix(in srgb, var(--foreground) 8%, transparent);
+}
+.event-activation::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 190px 0 0;
+  background:
+    radial-gradient(ellipse 320px 180px at -170px 45px, color-mix(in srgb, var(--rosa) 20%, transparent) 98%, transparent 100%),
+    radial-gradient(ellipse 280px 140px at calc(100% + 190px) 170px, color-mix(in srgb, var(--rosa) 80%, transparent) 98%, transparent 100%),
+    radial-gradient(ellipse 350px 240px at -230px 640px, color-mix(in srgb, var(--rosa) 12%, transparent) 98%, transparent 100%);
+  pointer-events: none;
+}
+.event-activation .font-serif,
+.event-activation .font-script,
+.pantalla-activacion .font-serif,
+.pantalla-activacion .font-script {
+  font-family: var(--font-roboto), Roboto, Arial, sans-serif;
+}
+.activation-header {
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: var(--foreground);
+  color: white;
+}
+.activation-header-copy { padding: 36px 28px 56px; }
+.activation-header h1 { font-size: 36px; font-weight: 800; line-height: 1.05; letter-spacing: -.04em; text-wrap: balance; }
+.activation-date { margin-bottom: 12px; font-size: 12px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; }
+.activation-description { margin-top: 16px; max-width: 36ch; font-size: 14px; line-height: 1.5; }
+.activation-banner { display: block; width: 100%; height: auto; }
+.activation-main { position: relative; z-index: 1; flex: 1; width: 100%; padding: 0 16px 28px; margin-top: -22px; }
+.activation-shortcuts { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin: 24px auto 0; }
+.activation-shortcuts a { display: flex; align-items: center; gap: 8px; border: 1px solid color-mix(in srgb, var(--rosa) 24%, transparent); border-radius: 999px; padding: 11px 16px; font-size: 13px; font-weight: 600; background: color-mix(in srgb, var(--gris-card) 80%, transparent); }
+.activation-shortcuts a:hover { background: var(--gris-card); }
+.activation-shortcuts a:focus-visible { outline: 2px solid var(--rosa); outline-offset: 3px; }
+.activation-footer { margin-top: auto; padding: 0 20px 22px; text-align: center; font-size: 11px; color: var(--foreground); }
+.activation-footer strong { margin-left: 3px; font-size: 16px; letter-spacing: -.05em; }
+.pantalla-activacion .pantalla-panel { box-shadow: none; border-left: 1px solid color-mix(in srgb, var(--p-rosa) 20%, transparent); }
+.pantalla-activacion .pantalla-panel header > img { max-height: 20vh; border-radius: 1.5vh; object-fit: cover; }
+.pantalla-activacion .pantalla-panel header > p { color: var(--p-texto); }
+.activation-screen-welcome { display: grid; height: 100%; grid-template-columns: 1.15fr 1fr; align-items: center; gap: 5vw; padding: 6vh 6vw; }
+.activation-screen-welcome .screen-brand { width: 100%; max-height: 40vh; object-fit: cover; border-radius: 2vh; margin-bottom: 3vh; }
+.activation-screen-welcome h1 { font-size: 7vh; font-weight: 800; line-height: 1.05; letter-spacing: -.04em; text-wrap: balance; }
+.activation-screen-welcome .screen-invitation { margin-top: 2.5vh; font-size: 3vh; line-height: 1.4; max-width: 29ch; }
+.activation-screen-welcome .screen-qr { width: 34vh; height: 34vh; margin: 0 auto 3vh; padding: 2vh; border-radius: 2vh; background: white; }
+.activation-screen-welcome .screen-instructions { font-size: 2.3vh; line-height: 1.5; }
+.activation-screen-welcome .screen-participate { border-radius: 3vh; background: var(--p-tarjeta); padding: 5vh 3vw; text-align: center; }
+
+@media (min-width: 768px) {
+  .event-activation { margin-block: 28px; min-height: calc(100dvh - 56px); border-radius: 24px; overflow: hidden; }
+  .activation-main { padding-inline: 24px; }
 }
 
 /* Pantalla del salón (/pantalla/<matrimonio>). Se mira de lejos y durante

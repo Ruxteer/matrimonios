@@ -6,7 +6,7 @@ import { PRODUCTO } from "@/lib/config";
 const roboto = Roboto({
   variable: "--font-roboto",
   subsets: ["latin"],
-  weight: ["400", "500", "700"],
+  weight: ["400", "500", "700", "900"],
 });
 
 // Gelasio es métricamente compatible con Georgia: se usa de respaldo

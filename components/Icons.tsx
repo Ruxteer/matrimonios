@@ -139,6 +139,7 @@ export function IconTrivia({ className }: IconProps) {
 // Un ícono por módulo, para que las tarjetas y los atajos se armen solos a
 // partir del catálogo (lib/modulos.ts).
 const POR_MODULO = {
+  registro: IconEncuesta,
   mesa: IconCopas,
   mensajes: IconSobre,
   fotos: IconCamara,

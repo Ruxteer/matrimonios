@@ -21,7 +21,7 @@ export default async function Portada() {
 
       {eventos.length === 0 ? (
         <div className="rounded-2xl bg-gris-card p-6 text-sm">
-          <p className="mb-3 font-medium">Todavía no hay matrimonios creados.</p>
+          <p className="mb-3 font-medium">Todavía no hay eventos creados.</p>
           <Link href="/admin" className="underline">
             Entrar al panel para crear el primero
           </Link>

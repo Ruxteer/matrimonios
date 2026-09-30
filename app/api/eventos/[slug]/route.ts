@@ -9,6 +9,7 @@ import {
   getEvento,
   resumenEvento,
 } from "@/lib/eventos";
+import { errorRegistroConfig } from "@/lib/registro";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +33,12 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   const evento = await getEvento(slug);
   if (!evento) return NextResponse.json({ error: "no existe" }, { status: 404 });
   if (!puedeAdministrar(req, evento)) return noAutorizado();
-  const body = await req.json().catch(() => ({}));
+  const crudo = await req.json().catch(() => ({}));
+  const body: Record<string, unknown> = crudo && typeof crudo === "object" && !Array.isArray(crudo) ? crudo : {};
+  if ("registro_config" in body) {
+    const error = errorRegistroConfig(body.registro_config);
+    if (error) return NextResponse.json({ error }, { status: 400 });
+  }
 
   // Cambiar la dirección web invalida los QR ya impresos, así que eso queda
   // para quien administra el producto, no para los novios.
@@ -51,10 +57,10 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
         { status: 400 }
       );
     }
-    return NextResponse.json(actualizado);
+    return NextResponse.json({ ...actualizado, maestra: isAdmin(req) });
   }
 
-  return NextResponse.json(eventoParaPanel(await actualizarEvento(evento, body)));
+  return NextResponse.json({ ...eventoParaPanel(await actualizarEvento(evento, body)), maestra: isAdmin(req) });
 }
 
 // Eliminar un matrimonio es solo de la clave maestra: los novios no pueden

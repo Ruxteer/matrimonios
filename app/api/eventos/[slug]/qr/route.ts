@@ -4,8 +4,7 @@ import { getEvento } from "@/lib/eventos";
 
 export const dynamic = "force-dynamic";
 
-// QR del matrimonio: apunta a la portada pública (el mismo QR sirve a todos
-// los invitados). ?formato=svg para imprimirlo en cualquier tamaño.
+// QR del evento: apunta a la portada pública. ?formato=svg permite imprimirlo.
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
@@ -15,7 +14,7 @@ export async function GET(
   if (!evento) return NextResponse.json({ error: "no existe" }, { status: 404 });
 
   const url = new URL(`/${evento.slug}`, req.nextUrl.origin).toString();
-  const opciones = { margin: 1, color: { dark: "#58595b", light: "#ffffff" } };
+  const opciones = { margin: 1, color: { dark: evento.tipo === "activacion" ? "#001740" : "#58595b", light: "#ffffff" } };
   const descarga = req.nextUrl.searchParams.get("descargar") === "1";
   const nombre = `qr-${evento.slug}`;
 

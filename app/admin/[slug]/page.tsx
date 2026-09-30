@@ -12,32 +12,36 @@ import Encuestas from "@/components/admin/Encuestas";
 import Votaciones from "@/components/admin/Votaciones";
 import Sorteos from "@/components/admin/Sorteos";
 import Trivia from "@/components/admin/Trivia";
-import { urlArchivo } from "@/lib/urls";
+import Fotos from "@/components/admin/Fotos";
+import Registro from "@/components/admin/Registro";
+import { etiquetaEvento } from "@/lib/identidad";
 import { modulosActivos, type ModuloId } from "@/lib/modulos";
 import type { Guest } from "@/lib/db";
 import type { EventoPanel } from "@/lib/eventos";
 
 type Mensaje = { id: number; nombre: string; mensaje: string; created_at: string };
-type Foto = { id: number; archivo: string; created_at: string };
 type Tab = ModuloId | "invitados" | "modulos" | "ajustes";
 
 export default function AdminEvento() {
   const { slug } = useParams<{ slug: string }>();
-  const [tab, setTab] = useState<Tab>("invitados");
+  const [tab, setTab] = useState<Tab | null>(null);
   const [evento, setEvento] = useState<EventoPanel | null>(null);
   const [guests, setGuests] = useState<Guest[]>([]);
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
-  const [fotos, setFotos] = useState<Foto[]>([]);
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [existe, setExiste] = useState(true);
+  const [errorCarga, setErrorCarga] = useState("");
+  function actualizarVista(actualizado: EventoPanel) {
+    setEvento((anterior) => ({ ...actualizado, maestra: actualizado.maestra ?? anterior?.maestra }));
+  }
 
   const load = useCallback(() => {
     Promise.all([
       fetch(`/api/eventos/${slug}`),
       fetch(`/api/eventos/${slug}/guests`),
       fetch(`/api/eventos/${slug}/messages`),
-      fetch(`/api/eventos/${slug}/photos`),
-    ]).then(async ([re, rg, rm, rf]) => {
+    ]).then(async ([re, rg, rm]) => {
+      setErrorCarga("");
       if (re.status === 404) {
         setExiste(false);
         setAuthed(true);
@@ -47,32 +51,28 @@ export default function AdminEvento() {
         setAuthed(false);
         return;
       }
-      setEvento(await re.json());
+      if (!re.ok || !rg.ok || !rm.ok) throw new Error("No pudimos cargar el evento.");
+      const datos: EventoPanel = await re.json();
+      setEvento(datos);
       setGuests(await rg.json());
       setMensajes(await rm.json());
-      setFotos(await rf.json());
       setAuthed(true);
-    });
+    }).catch(() => setErrorCarga("No pudimos cargar el evento. Revisa tu conexión e intenta otra vez."));
   }, [slug]);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  async function borrarFoto(id: number) {
-    if (!confirm("¿Eliminar esta foto? No se puede deshacer.")) return;
-    const res = await fetch(`/api/eventos/${slug}/photos/${id}`, { method: "DELETE" });
-    if (res.ok) setFotos((fs) => fs.filter((f) => f.id !== id));
-  }
-
+  if (errorCarga) return <main className="mx-auto max-w-md p-6"><p role="alert">{errorCarga}</p><button onClick={load} className="mt-4 rounded-lg border p-3">Reintentar</button></main>;
   if (authed === false) return <Login onOk={load} slug={slug} />;
   if (authed === null) return <p className="p-6 text-neutral-500">Cargando…</p>;
   if (!existe) {
     return (
       <main className="mx-auto max-w-3xl p-6">
-        <p className="mb-4">Ese matrimonio no existe.</p>
+        <p className="mb-4">Ese evento no existe.</p>
         <Link href="/admin" className="underline">
-          Ver todos los matrimonios
+          Ver todos los eventos
         </Link>
       </main>
     );
@@ -82,28 +82,31 @@ export default function AdminEvento() {
   // Las pestañas siguen a los módulos encendidos y su orden: lo que el
   // matrimonio no usa no aparece en el panel. Mesa se administra desde
   // Invitados y Mapa desde Ajustes, así que no tienen pestaña propia.
-  const conPanel = modulosActivos(evento).filter(
+  const activos = modulosActivos(evento);
+  const mostrarInvitados = evento.tipo !== "activacion" || activos.some((m) => m.id === "mesa");
+  const conPanel = activos.filter(
     (m) => m.id !== "mesa" && m.id !== "mapa"
   );
   const etiquetas: Partial<Record<ModuloId, string>> = {
     mensajes: `Mensajes (${mensajes.length})`,
-    fotos: `Fotos (${fotos.length})`,
+    registro: "Participantes y registro",
   };
   const pestañas: [Tab, string][] = [
-    ["invitados", `Invitados (${guests.length})`],
+    ...(mostrarInvitados ? [["invitados", `${evento.tipo === "activacion" ? "Mesas" : "Invitados"} (${guests.length})`] as [Tab, string]] : []),
     ...conPanel.map((m): [Tab, string] => [m.id, etiquetas[m.id] ?? m.nombre]),
     ["modulos", "Módulos"],
     ["ajustes", "Ajustes"],
   ];
   // Al apagar un módulo su pestaña desaparece: hay que volver a una que exista.
-  const actual = pestañas.some(([key]) => key === tab) ? tab : "invitados";
+  const predeterminada: Tab = evento.tipo === "activacion" && conPanel.some((m) => m.id === "registro") ? "registro" : pestañas[0][0];
+  const actual = pestañas.some(([key]) => key === tab) ? tab : predeterminada;
 
   return (
     <main className="mx-auto max-w-6xl p-6">
       {/* Los novios solo tienen su matrimonio: la lista completa no es para ellos. */}
       {evento.maestra ? (
         <Link href="/admin" className="text-sm text-neutral-400 hover:text-neutral-700">
-          ← Todos los matrimonios
+          ← Todos los eventos
         </Link>
       ) : (
         <button
@@ -120,7 +123,7 @@ export default function AdminEvento() {
       {/* Identidad del matrimonio que se está administrando */}
       <div className="mb-5 mt-2 flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b border-neutral-200 pb-4">
         <h1 className="text-2xl font-semibold">
-          Matrimonio de {evento.nombre1} y {evento.nombre2}
+          {evento.tipo === "activacion" ? "" : "Matrimonio de "}{etiquetaEvento(evento)}
         </h1>
         {evento.fecha && <span className="text-neutral-500">{evento.fecha}</span>}
         <a
@@ -173,39 +176,8 @@ export default function AdminEvento() {
         </div>
       )}
 
-      {actual === "fotos" && (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-6">
-          {fotos.length === 0 && (
-            <p className="col-span-full text-neutral-400">Aún no suben fotos.</p>
-          )}
-          {fotos.map((f) => (
-            <div key={f.id} className="group relative">
-              <a
-                href={urlArchivo(f.archivo)}
-                target="_blank"
-                rel="noreferrer"
-                className="block overflow-hidden rounded-xl border border-neutral-200"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={urlArchivo(f.archivo)}
-                  alt={`Foto ${f.id}`}
-                  className="aspect-square w-full object-cover"
-                  loading="lazy"
-                />
-              </a>
-              <button
-                onClick={() => borrarFoto(f.id)}
-                title="Eliminar foto"
-                aria-label={`Eliminar foto ${f.id}`}
-                className="absolute right-2 top-2 rounded-full bg-white/90 px-2 py-1 text-sm text-neutral-500 opacity-0 shadow transition group-hover:opacity-100 hover:text-rose-600 focus:opacity-100"
-              >
-                ✕
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
+      {actual === "fotos" && <Fotos slug={evento.slug} />}
+      {actual === "registro" && <Registro evento={evento} onGuardado={actualizarVista} />}
 
       {actual === "agenda" && <Agenda slug={evento.slug} />}
       {actual === "encuestas" && <Encuestas slug={evento.slug} />}
@@ -213,8 +185,8 @@ export default function AdminEvento() {
       {actual === "sorteos" && <Sorteos slug={evento.slug} />}
       {actual === "trivia" && <Trivia slug={evento.slug} />}
 
-      {actual === "modulos" && <Modulos evento={evento} onGuardado={setEvento} />}
-      {actual === "ajustes" && <Ajustes evento={evento} onGuardado={setEvento} />}
+      {actual === "modulos" && <Modulos evento={evento} onGuardado={actualizarVista} />}
+      {actual === "ajustes" && <Ajustes evento={evento} onGuardado={actualizarVista} />}
     </main>
   );
 }

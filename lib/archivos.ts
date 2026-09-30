@@ -1,10 +1,13 @@
 import crypto from "crypto";
 import fs from "fs/promises";
+import { createReadStream } from "fs";
 import path from "path";
+import { Readable } from "stream";
 import { del, get, put } from "@vercel/blob";
+import { firmaImagenValida } from "./imagen";
 
 export const CARPETA = path.join(process.cwd(), "data", "uploads");
-export const MAX_BYTES = 15 * 1024 * 1024; // 15 MB
+export const MAX_BYTES = 4 * 1024 * 1024; // deja margen para el cuerpo multipart
 const PREFIJO = "matrimonios/";
 
 const EXT_POR_TIPO: Record<string, string> = {
@@ -47,7 +50,12 @@ export async function guardarImagen(file: unknown): Promise<Guardado> {
   if (!ext) {
     return { ok: false, error: "formato no soportado (usa JPG, PNG, WebP o HEIC)" };
   }
-  if (file.size > MAX_BYTES) return { ok: false, error: "la imagen supera los 15 MB" };
+  if (file.size > MAX_BYTES) return { ok: false, error: "la imagen supera los 4 MB" };
+  if (file.size === 0) return { ok: false, error: "el archivo está vacío" };
+  const cabecera = new Uint8Array(await file.slice(0, 64).arrayBuffer());
+  if (!firmaImagenValida(cabecera, file.type)) {
+    return { ok: false, error: "el contenido del archivo no corresponde a una imagen válida" };
+  }
 
   const nombre = crypto.randomBytes(10).toString("hex") + ext;
 
@@ -71,11 +79,13 @@ export async function leerImagen(
   if (enLaNube()) {
     const r = await get(PREFIJO + nombre, { access: "private" });
     if (!r || r.statusCode !== 200 || !r.stream) return null;
-    return { cuerpo: r.stream, tipo: r.blob.contentType || tipo };
+    return { cuerpo: r.stream as ReadableStream, tipo: r.blob.contentType || tipo };
   }
 
   try {
-    return { cuerpo: new Uint8Array(await fs.readFile(path.join(CARPETA, nombre))), tipo };
+    const ruta = path.join(CARPETA, nombre);
+    await fs.access(ruta);
+    return { cuerpo: Readable.toWeb(createReadStream(ruta)) as ReadableStream, tipo };
   } catch {
     return null;
   }

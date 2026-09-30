@@ -56,7 +56,7 @@ function ClaveInvalida() {
     <main className="flex h-dvh flex-col items-center justify-center p-6 text-center">
       <h1 className="mb-2 text-xl font-semibold">Esta dirección no es válida</h1>
       <p className="max-w-sm text-sm text-neutral-500">
-        La pantalla del salón se abre con el enlace que aparece en el panel del matrimonio,
+        La pantalla en vivo se abre con el enlace que aparece en el panel del evento,
         en Ajustes.
       </p>
     </main>

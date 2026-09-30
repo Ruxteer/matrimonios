@@ -48,6 +48,10 @@ const ESQUEMA = [
      slug TEXT UNIQUE NOT NULL,
      nombre1 TEXT NOT NULL,
      nombre2 TEXT NOT NULL,
+     tipo TEXT NOT NULL DEFAULT 'matrimonio',
+     titulo TEXT NOT NULL DEFAULT '',
+     descripcion TEXT NOT NULL DEFAULT '',
+     registro_config TEXT NOT NULL DEFAULT '',
      fecha TEXT NOT NULL DEFAULT '',
      color_fondo TEXT NOT NULL DEFAULT '${COLORES.fondo}',
      color_rosa TEXT NOT NULL DEFAULT '${COLORES.rosa}',
@@ -90,8 +94,32 @@ const ESQUEMA = [
      id INTEGER PRIMARY KEY AUTOINCREMENT,
      evento_id INTEGER NOT NULL DEFAULT 1,
      archivo TEXT NOT NULL,
+     participante_id INTEGER,
+     estado TEXT NOT NULL DEFAULT 'aprobada',
      created_at TEXT DEFAULT (datetime('now'))
    )`,
+
+  // El registro del participante es independiente de las listas de invitados.
+  // El token opaco vive solo en su cookie; la base guarda únicamente su hash.
+  `CREATE TABLE IF NOT EXISTS participantes (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     evento_id INTEGER NOT NULL,
+     nombre TEXT NOT NULL,
+     email TEXT NOT NULL,
+     email_normalizado TEXT NOT NULL,
+     telefono TEXT NOT NULL DEFAULT '',
+     consentimiento_legal INTEGER NOT NULL DEFAULT 0,
+     consentimiento_informacion INTEGER NOT NULL DEFAULT 0,
+     consentimiento_marketing INTEGER NOT NULL DEFAULT 0,
+     campos_extra TEXT NOT NULL DEFAULT '{}',
+     consentimientos_at TEXT NOT NULL DEFAULT '',
+     consentimiento_version TEXT NOT NULL DEFAULT '',
+     token_hash TEXT NOT NULL UNIQUE,
+     created_at TEXT DEFAULT (datetime('now')),
+     updated_at TEXT DEFAULT (datetime('now')),
+     UNIQUE (evento_id, email_normalizado)
+   )`,
+  `CREATE INDEX IF NOT EXISTS participantes_evento ON participantes (evento_id)`,
 
   // Agenda: las actividades del día, en el orden en que ocurren.
   `CREATE TABLE IF NOT EXISTS agenda (
@@ -258,6 +286,14 @@ async function preparar(c: Client) {
       modulos: TEXTO,
       clave: TEXTO,
       banner_movil: TEXTO,
+      tipo: "TEXT NOT NULL DEFAULT 'matrimonio'",
+      titulo: TEXTO,
+      descripcion: TEXTO,
+      registro_config: TEXTO,
+    },
+    photos: {
+      participante_id: "INTEGER",
+      estado: "TEXT NOT NULL DEFAULT 'aprobada'",
     },
     sorteos: {
       cantidad_suplentes: NUMERO,
@@ -279,6 +315,10 @@ async function preparar(c: Client) {
       }
     }
   }
+  // Las bases anteriores reciben primero las columnas necesarias para estos índices.
+  await c.execute("CREATE INDEX IF NOT EXISTS photos_evento_participante ON photos (evento_id, participante_id)");
+  await c.execute("CREATE INDEX IF NOT EXISTS photos_evento_estado ON photos (evento_id, estado, id)");
+  await c.execute("CREATE INDEX IF NOT EXISTS participantes_evento_id ON participantes (evento_id, id)");
   // Cada matrimonio necesita su propia clave de pantalla, así que se completan
   // de a uno los que vengan de una versión anterior.
   const sinToken = await c.execute("SELECT id FROM eventos WHERE pantalla_token = ''");
@@ -308,6 +348,10 @@ export type Evento = {
   slug: string;
   nombre1: string;
   nombre2: string;
+  tipo: "matrimonio" | "activacion";
+  titulo: string;
+  descripcion: string;
+  registro_config: string;
   fecha: string;
   color_fondo: string;
   color_rosa: string;
@@ -325,6 +369,15 @@ export type Evento = {
   pantalla_token: string;
   /** Clave de los novios, guardada como "sal:hash". Vacía = solo entra la maestra. */
   clave: string;
+  created_at: string;
+};
+
+export type Foto = {
+  id: number;
+  evento_id: number;
+  archivo: string;
+  participante_id: number | null;
+  estado: "pendiente" | "aprobada" | "rechazada";
   created_at: string;
 };
 

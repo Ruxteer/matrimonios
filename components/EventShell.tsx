@@ -1,28 +1,31 @@
 import Image from "next/image";
+import { etiquetaEvento } from "@/lib/identidad";
 import type { Evento } from "@/lib/db";
 import { urlArchivo } from "@/lib/urls";
-import { COLORES } from "@/lib/config";
+import { COLORES, paletaEvento } from "@/lib/config";
+import ActivationHeader from "./ActivationHeader";
 import { aclarar, colorValido, oscurecer, textoSobre } from "@/lib/colores";
 
 const color = (v: string, porDefecto: string) => (colorValido(v) ? v : porDefecto);
 
-// Los colores del matrimonio se inyectan como variables CSS: el resto de la
+// Los colores del evento se inyectan como variables CSS: el resto de la
 // interfaz ya usa bg-rosa, bg-gris-card, etc. Los tonos derivados (hover, rosa
 // suave, dorado oscuro) se calculan aquí para que cualquier paleta que elija el
 // organizador quede completa, y el color del texto de los botones se decide por
 // contraste: con una paleta clara el blanco no se lee.
 export function ColoresEvento({ evento }: { evento: Evento }) {
-  const boton = color(evento.color_rosa, COLORES.rosa);
-  const dorado = color(evento.color_dorado, COLORES.dorado);
+  const paleta = paletaEvento(evento);
+  const boton = paleta.rosa;
+  const dorado = paleta.dorado;
   const css = `:root{
-    --background:${color(evento.color_fondo, COLORES.fondo)};
-    --foreground:${color(evento.color_texto, COLORES.texto)};
+    --background:${paleta.fondo};
+    --foreground:${paleta.texto};
     --rosa:${boton};
     --rosa-hover:${oscurecer(boton, 0.12)};
     --rosa-footer:${boton};
     --rosa-suave:${aclarar(boton, 0.72)};
     --rosa-texto:${textoSobre(boton)};
-    --gris-card:${color(evento.color_card, COLORES.card)};
+    --gris-card:${paleta.card};
     --dorado:${dorado};
     --dorado-oscuro:${oscurecer(dorado, 0.18)};
   }`;
@@ -120,6 +123,11 @@ function BannerPropio({
 }
 
 export function EventHeader({ evento }: { evento: Evento }) {
+  if (evento.tipo === "activacion") {
+    return <ActivationHeader titulo={etiquetaEvento(evento)} descripcion={evento.descripcion} fecha={evento.fecha}
+      banner={urlArchivo(evento.banner || evento.banner_movil)} bannerMovil={urlArchivo(evento.banner_movil || evento.banner)}
+      mostrarTexto={evento.banner_texto === 1} />;
+  }
   const conTexto = evento.banner_texto === 1;
   const alt = `Matrimonio de ${evento.nombre1} y ${evento.nombre2}${
     evento.fecha ? `, ${evento.fecha}` : ""
@@ -188,7 +196,8 @@ export function EventHeader({ evento }: { evento: Evento }) {
   );
 }
 
-export function EventFooter() {
+export function EventFooter({ activacion = false }: { activacion?: boolean }) {
+  if (activacion) return <footer className="activation-footer">Una experiencia con <strong>Venito</strong></footer>;
   return (
     <footer className="mt-auto bg-rosa-footer px-6 py-6">
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -208,12 +217,13 @@ export default function EventShell({
   evento: Evento;
   children: React.ReactNode;
 }) {
+  const activacion = evento.tipo === "activacion";
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className={activacion ? "event-activation" : "flex min-h-dvh flex-col"}>
       <ColoresEvento evento={evento} />
       <EventHeader evento={evento} />
-      <main className="mx-auto w-full max-w-md flex-1 px-6 pb-12 pt-6">{children}</main>
-      <EventFooter />
+      <main className={activacion ? "activation-main" : "mx-auto w-full max-w-md flex-1 px-6 pb-12 pt-6"}>{children}</main>
+      <EventFooter activacion={evento.tipo === "activacion"} />
     </div>
   );
 }

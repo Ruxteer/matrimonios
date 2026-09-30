@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { urlArchivo } from "@/lib/urls";
-import { COLORES } from "@/lib/config";
+import { etiquetaEvento } from "@/lib/identidad";
+import { moduloActivo } from "@/lib/modulos";
+import { paletaEvento } from "@/lib/config";
 import type { Evento } from "@/lib/db";
 import type { DatosPantalla, FotoPantalla, MensajePantalla } from "@/lib/pantalla";
 
@@ -15,8 +17,6 @@ export type ModoPantalla = "todo" | "fotos" | "mensajes";
 const DURACION = { foto: 9000, mensaje: 8000, destacada: 15000 };
 const CADA = 8000; // cada cuánto se pregunta si llegó algo nuevo
 
-const HEX = /^#[0-9a-fA-F]{6}$/;
-const color = (v: string, porDefecto: string) => (HEX.test(v) ? v : porDefecto);
 
 type Escena =
   | { tipo: "foto"; clave: string; foto: FotoPantalla }
@@ -100,6 +100,7 @@ export default function PantallaSalon({
         if (firma(nuevos) === firmaActual.current) return;
         firmaActual.current = firma(nuevos);
         setDatos(nuevos);
+        setDestacada((actual) => actual && nuevos.fotos.some((f) => f.id === actual.id) ? actual : null);
         const ultima = nuevos.fotos[0];
         if (ultima && ultima.id > ultimaVista.current) {
           ultimaVista.current = ultima.id;
@@ -144,29 +145,29 @@ export default function PantallaSalon({
     else document.documentElement.requestFullscreen().catch(() => {});
   }
 
-  const dorado = color(evento.color_dorado, COLORES.dorado);
-  const rosa = color(evento.color_rosa, COLORES.rosa);
+  const activacion = evento.tipo === "activacion";
+  const paleta = paletaEvento(evento);
   const estilo = {
-    "--p-fondo": oscuro ? "#14100f" : color(evento.color_fondo, COLORES.fondo),
-    "--p-texto": oscuro ? "#f7efe8" : color(evento.color_texto, COLORES.texto),
-    "--p-tarjeta": oscuro ? "rgba(255,255,255,.07)" : color(evento.color_card, COLORES.card),
-    "--p-rosa": rosa,
-    "--p-dorado": oscuro ? "#e3d08a" : dorado,
+    "--p-fondo": oscuro ? (activacion ? "#071a35" : "#14100f") : paleta.fondo,
+    "--p-texto": oscuro ? (activacion ? "#f0f8ff" : "#f7efe8") : paleta.texto,
+    "--p-tarjeta": oscuro ? "rgba(255,255,255,.07)" : paleta.card,
+    "--p-rosa": paleta.rosa,
+    "--p-dorado": activacion ? (oscuro ? paleta.dorado : paleta.rosa) : (oscuro ? "#e3d08a" : paleta.dorado),
   } as React.CSSProperties;
 
   return (
     <div
       onMouseMove={moverMouse}
       style={estilo}
-      className={`relative h-dvh w-full overflow-hidden bg-[var(--p-fondo)] text-[var(--p-texto)] ${
+      className={`${activacion ? "pantalla-activacion" : ""} relative h-dvh w-full overflow-hidden bg-[var(--p-fondo)] text-[var(--p-texto)] ${
         controles ? "" : "cursor-none"
       }`}
     >
-      <Petalos />
+      {evento.tipo !== "activacion" && <Petalos />}
 
       {/* Antes de que suba nadie nada, la pantalla entera es la invitación. */}
       {!destacada && !escena ? (
-        <Bienvenida evento={evento} modo={modo} />
+        activacion ? <BienvenidaActivacion evento={evento} /> : <Bienvenida evento={evento} modo={modo} />
       ) : (
         <div className="relative grid h-full grid-cols-[1fr_25vw]">
           <section className="relative overflow-hidden p-[3vh]">
@@ -187,7 +188,7 @@ export default function PantallaSalon({
       {siguiente?.tipo === "foto" && (
         /* eslint-disable-next-line @next/next/no-img-element */
         <img
-          src={urlArchivo(siguiente.foto.archivo)}
+          src={siguiente.foto.url}
           alt=""
           aria-hidden
           className="pointer-events-none absolute h-px w-px opacity-0"
@@ -217,7 +218,7 @@ export default function PantallaSalon({
 }
 
 function EscenaFoto({ foto, nueva }: { foto: FotoPantalla; nueva?: boolean }) {
-  const src = urlArchivo(foto.archivo);
+  const src = foto.url;
   // La foto se muestra entera: nadie queda fuera de cuadro por un recorte. El
   // movimiento lento va en el fondo desenfocado, que además tapa las franjas
   // vacías de las fotos verticales.
@@ -233,7 +234,7 @@ function EscenaFoto({ foto, nueva }: { foto: FotoPantalla; nueva?: boolean }) {
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={src}
-        alt="Foto compartida por un invitado"
+        alt="Foto compartida por un participante"
         className="relative max-h-full max-w-full rounded-[2vh] object-contain shadow-2xl"
       />
 
@@ -283,6 +284,31 @@ function EscenaMensaje({ mensaje }: { mensaje: MensajePantalla }) {
 
 // Al empezar la fiesta, cuando todavía no sube nadie nada: el QR grande al
 // centro, para que se lea desde el fondo del salón.
+function BienvenidaActivacion({ evento }: { evento: EventoPantalla }) {
+  const imagen = urlArchivo(evento.banner || evento.banner_movil);
+  const conFotos = moduloActivo(evento, "fotos");
+  const conRegistro = moduloActivo(evento, "registro");
+  return (
+    <div className="activation-screen-welcome pantalla-aparecer">
+      <div>
+        {imagen && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={imagen} alt={etiquetaEvento(evento)} className="screen-brand" />
+        )}
+        <h1>{conFotos ? "Comparte tu energía." : etiquetaEvento(evento)}</h1>
+        <p className="screen-invitation">{conFotos ? "Tu mejor momento puede aparecer aquí. Súmate a la experiencia." : "Sé parte de la experiencia. Escanea el código y participa."}</p>
+      </div>
+      <div className="screen-participate">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={`/api/eventos/${evento.slug}/qr`} alt="Código QR del evento" className="screen-qr" />
+        <p className="text-[4vh] font-bold">Escanea y participa</p>
+        <p className="screen-instructions mt-[2vh]">{conRegistro ? "Regístrate desde tu celular." : "Entra desde tu celular."}{conFotos && <><br />Comparte tu foto y aparece en pantalla.</>}</p>
+        <p className="mt-[3vh] text-[1.6vh] opacity-75">Una experiencia con <strong>Venito</strong></p>
+      </div>
+    </div>
+  );
+}
+
 function Bienvenida({ evento, modo }: { evento: EventoPantalla; modo: ModoPantalla }) {
   const que =
     modo === "fotos"
@@ -296,12 +322,10 @@ function Bienvenida({ evento, modo }: { evento: EventoPantalla; modo: ModoPantal
         className="font-serif font-bold text-[var(--p-dorado)]"
         style={{ fontSize: "2.6vh", letterSpacing: ".12em" }}
       >
-        MATRIMONIO DE
+        {evento.tipo === "activacion" ? "EN VIVO" : "MATRIMONIO DE"}
       </p>
-      <p className="font-script leading-none text-[var(--p-dorado)]" style={{ fontSize: "14vh" }}>
-        {evento.nombre1}
-        <span style={{ fontSize: "0.55em" }}> y </span>
-        {evento.nombre2}
+      <p className={`${evento.tipo === "activacion" ? "font-sans font-bold" : "font-script"} max-w-[90vw] leading-tight text-[var(--p-dorado)]`} style={{ fontSize: evento.tipo === "activacion" ? "8vh" : "14vh" }}>
+        {etiquetaEvento(evento)}
       </p>
       {evento.fecha && (
         <p
@@ -314,11 +338,11 @@ function Bienvenida({ evento, modo }: { evento: EventoPantalla; modo: ModoPantal
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={`/api/eventos/${evento.slug}/qr`}
-        alt="Código QR del matrimonio"
+        alt="Código QR del evento"
         className="pantalla-respirar my-[4vh] h-[36vh] w-[36vh] rounded-[2vh] bg-white p-[1.5vh] shadow-xl"
       />
       <p className="max-w-[34ch] font-serif text-[3.2vh] leading-snug">
-        Escanea el código con tu celular y {que}.
+        {moduloActivo(evento, "registro") ? "Escanea el código, regístrate y comparte tu foto." : `Escanea el código con tu celular y ${que}.`}
       </p>
     </div>
   );
@@ -328,18 +352,20 @@ function Panel({ evento, datos }: { evento: EventoPantalla; datos: DatosPantalla
   // De a tres para que la fila quede siempre completa.
   const miniaturas = datos.fotos.slice(0, datos.fotos.length >= 6 ? 6 : 3);
   return (
-    <aside className="flex h-full flex-col items-center justify-between bg-[var(--p-tarjeta)] px-[2vh] py-[4vh] text-center shadow-[-1vh_0_4vh_rgba(0,0,0,.08)]">
-      <header>
+    <aside className="pantalla-panel flex h-full flex-col items-center justify-between bg-[var(--p-tarjeta)] px-[2vh] py-[4vh] text-center shadow-[-1vh_0_4vh_rgba(0,0,0,.08)]">
+      <header className="w-full">
+        {(evento.banner || evento.banner_movil) && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={urlArchivo(evento.banner || evento.banner_movil)} alt={etiquetaEvento(evento)} className="mb-[2vh] max-h-[14vh] w-full object-contain" />
+        )}
         <p
           className="font-serif font-bold text-[var(--p-dorado)]"
           style={{ fontSize: "2vh", letterSpacing: ".12em" }}
         >
-          MATRIMONIO DE
+          {evento.tipo === "activacion" ? "EN VIVO" : "MATRIMONIO DE"}
         </p>
-        <p className="font-script leading-none text-[var(--p-dorado)]" style={{ fontSize: "8vh" }}>
-          {evento.nombre1}
-          <span style={{ fontSize: "0.55em" }}> y </span>
-          {evento.nombre2}
+        <p className={`${evento.tipo === "activacion" ? "font-sans font-bold" : "font-script"} break-words leading-tight text-[var(--p-dorado)]`} style={{ fontSize: evento.tipo === "activacion" ? "4vh" : "8vh" }}>
+          {etiquetaEvento(evento)}
         </p>
         {evento.fecha && (
           <p
@@ -355,16 +381,18 @@ function Panel({ evento, datos }: { evento: EventoPantalla; datos: DatosPantalla
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={`/api/eventos/${evento.slug}/qr`}
-          alt="Código QR del matrimonio"
+          alt="Código QR del evento"
           className="mx-auto w-[16vw] max-w-[26vh] rounded-[2vh] bg-white p-[1.4vh] shadow-xl"
         />
         <p className="mt-[2vh] font-serif font-bold leading-snug" style={{ fontSize: "2.4vh" }}>
           Escanea y súmate
         </p>
         <p className="mt-[.6vh] leading-snug opacity-70" style={{ fontSize: "1.8vh" }}>
-          Sube tus fotos y déjales
-          <br />
-          un mensaje a los novios
+          {evento.tipo === "activacion"
+            ? moduloActivo(evento, "registro")
+              ? moduloActivo(evento, "fotos") ? "Regístrate y comparte tu foto" : "Regístrate y participa"
+              : moduloActivo(evento, "fotos") ? "Comparte tu foto del evento" : "Participa desde tu celular"
+            : "Sube tus fotos y deja un mensaje a los novios"}
         </p>
       </div>
 
@@ -382,7 +410,7 @@ function Panel({ evento, datos }: { evento: EventoPantalla; datos: DatosPantalla
                 /* eslint-disable-next-line @next/next/no-img-element */
                 <img
                   key={f.id}
-                  src={urlArchivo(f.archivo)}
+                  src={f.url}
                   alt=""
                   className="pantalla-miniatura aspect-square w-full rounded-[1vh] object-cover shadow"
                 />
@@ -391,7 +419,7 @@ function Panel({ evento, datos }: { evento: EventoPantalla; datos: DatosPantalla
           </>
         )}
         <p className="mt-[2vh] opacity-60" style={{ fontSize: "1.7vh" }}>
-          {cuenta(datos.totales.fotos, "foto")} · {cuenta(datos.totales.mensajes, "mensaje")}
+          {cuenta(datos.totales.fotos, "foto")}{moduloActivo(evento, "mensajes") && ` · ${cuenta(datos.totales.mensajes, "mensaje")}`}
         </p>
       </div>
     </aside>

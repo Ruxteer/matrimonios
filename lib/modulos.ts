@@ -8,6 +8,7 @@ type DatosDeModulos = Pick<Evento, "modulos" | "mapa">;
 // nuevo aquí lo deja disponible en el panel sin tocar ninguna otra pantalla.
 
 export type ModuloId =
+  | "registro"
   | "mesa"
   | "mensajes"
   | "fotos"
@@ -37,6 +38,14 @@ export type Modulo = {
 };
 
 export const MODULOS: Modulo[] = [
+  {
+    id: "registro",
+    nombre: "Registro",
+    descripcion: "Registro de participantes, consentimientos y datos de contacto, sin crear una cuenta.",
+    ruta: "registro",
+    tarjeta: "Regístrate para participar\ny recibir información",
+    boton: "Registrarme",
+  },
   {
     id: "mesa",
     nombre: "Mesa",

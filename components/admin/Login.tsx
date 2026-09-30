@@ -34,12 +34,12 @@ export default function Login({ onOk, slug }: { onOk: () => void; slug?: string 
         <p className="text-xs uppercase tracking-[0.35em] text-white/50">{PRODUCTO.nombre}</p>
         <div>
           <p className="font-script text-6xl leading-[1.05]">
-            Cada matrimonio,
+            Cada evento,
             <br />
             su propia web
           </p>
           <p className="mt-6 max-w-xs text-sm leading-relaxed text-white/50">
-            Invitados, mesas, mensajes, fotos, el QR y la pantalla del salón, en un solo
+            Registros, invitados, fotos, el QR y la pantalla en vivo, en un solo
             lugar.
           </p>
         </div>
@@ -51,7 +51,7 @@ export default function Login({ onOk, slug }: { onOk: () => void; slug?: string 
           <h1 className="font-serif text-3xl">Entrar al panel</h1>
           <p className="mt-2 text-sm text-neutral-500">
             {slug
-              ? "La clave de este matrimonio, o la de administración."
+              ? "La clave de este evento, o la de administración."
               : "La contraseña de administración."}
           </p>
 

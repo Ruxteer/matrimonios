@@ -1,11 +1,13 @@
-import { consultar } from "./db";
+import { consultar, uno, type Evento } from "./db";
+import { moduloActivo } from "./modulos";
+import { urlFotoPantalla } from "./urls";
 import type { Row } from "@libsql/client";
 
 // Cuánto material carga la pantalla del salón. Es un carrusel, no un archivo:
 // con las últimas cuarenta hay de sobra para toda la fiesta.
 const MAXIMO = 40;
 
-export type FotoPantalla = { id: number; archivo: string; created_at: string };
+export type FotoPantalla = { id: number; archivo: string; url: string; created_at: string };
 export type MensajePantalla = {
   id: number;
   nombre: string;
@@ -27,25 +29,30 @@ const txt = (v: Row[string]) => String(v ?? "");
 // Lo más nuevo primero: así el carrusel parte siempre por la última foto que
 // subió alguien, que es lo que la gente quiere ver.
 export async function datosPantalla(eventoId: number): Promise<DatosPantalla> {
+  const evento = await uno<Evento>("SELECT * FROM eventos WHERE id = ?", [eventoId]);
+  if (!evento) return { fotos: [], mensajes: [], totales: { fotos: 0, mensajes: 0 } };
+  const muestraFotos = moduloActivo(evento, "fotos");
+  const muestraMensajes = moduloActivo(evento, "mensajes");
   const [fotos, mensajes, totales] = await Promise.all([
-    consultar<Row>(
-      "SELECT id, archivo, created_at FROM photos WHERE evento_id = ? ORDER BY id DESC LIMIT ?",
+    muestraFotos ? consultar<Row>(
+      "SELECT id, archivo, created_at FROM photos WHERE evento_id = ? AND estado = 'aprobada' ORDER BY id DESC LIMIT ?",
       [eventoId, MAXIMO]
-    ),
-    consultar<Row>(
+    ) : Promise.resolve([]),
+    muestraMensajes ? consultar<Row>(
       "SELECT id, nombre, mensaje, created_at FROM messages WHERE evento_id = ? ORDER BY id DESC LIMIT ?",
       [eventoId, MAXIMO]
-    ),
+    ) : Promise.resolve([]),
     consultar<Row>(
-      `SELECT (SELECT COUNT(*) FROM photos   WHERE evento_id = ?1) AS fotos,
-              (SELECT COUNT(*) FROM messages WHERE evento_id = ?1) AS mensajes`,
-      [eventoId]
+      `SELECT (SELECT COUNT(*) FROM photos WHERE evento_id = ?1 AND estado = 'aprobada' AND ?2 = 1) AS fotos,
+              (SELECT COUNT(*) FROM messages WHERE evento_id = ?1 AND ?3 = 1) AS mensajes`,
+      [eventoId, muestraFotos ? 1 : 0, muestraMensajes ? 1 : 0]
     ),
   ]);
   return {
     fotos: fotos.map((f) => ({
       id: num(f.id),
       archivo: txt(f.archivo),
+      url: urlFotoPantalla(txt(f.archivo), evento.slug, evento.pantalla_token),
       created_at: txt(f.created_at),
     })),
     mensajes: mensajes.map((m) => ({

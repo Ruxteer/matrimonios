@@ -13,10 +13,10 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const evento = await getEvento(slug);
-  if (!evento) return { title: "Matrimonio no encontrado" };
+  if (!evento) return { title: "Evento no encontrado" };
   return {
-    title: `Matrimonio de ${nombreEvento(evento)}`,
-    description: "Busca tu mesa, deja tus buenos deseos y comparte tus fotos.",
+    title: evento.tipo === "activacion" ? nombreEvento(evento) : `Matrimonio de ${nombreEvento(evento)}`,
+    description: evento.descripcion || "Participa en el evento y comparte tus mejores momentos.",
   };
 }
 

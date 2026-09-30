@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import BuscadorMesa from "@/components/BuscadorMesa";
 import { TarjetaAccion, Vacio } from "@/components/ui";
 import { IconoModulo } from "@/components/Icons";
@@ -17,6 +17,7 @@ export default async function Inicio({
   // El inicio se arma con los módulos que el matrimonio dejó encendidos, en su
   // orden. La mesa va destacada arriba (es el buscador), el resto son tarjetas.
   const modulos = modulosActivos(evento);
+  if (evento.tipo === "activacion" && modulos.some((m) => m.id === "registro")) redirect(`/${evento.slug}/registro`);
   const buscador = modulos.find((m) => m.destacado);
   const tarjetas = modulos.filter((m) => !m.destacado);
 

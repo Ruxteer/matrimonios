@@ -2,9 +2,10 @@ import crypto from "crypto";
 import type { NextRequest } from "next/server";
 import { consultar, ejecutar, newToken, uno, Evento } from "./db";
 import { esAdminDeEvento, eventoDeLaSesion, guardarClave } from "./auth";
-import { COLORES } from "./config";
+import { coloresPorTipo } from "./config";
 import { borrarArchivo } from "./archivos";
 import { normalizarModulos } from "./modulos";
+import { normalizarRegistroConfig } from "./registro";
 
 // Los colores se inyectan como CSS: solo se aceptan hex de 6 dígitos.
 export { colorValido } from "./colores";
@@ -45,27 +46,42 @@ export async function slugDisponible(base: string, exceptoId?: number): Promise<
 export async function crearEvento(datos: {
   nombre1: string;
   nombre2: string;
+  tipo?: "matrimonio" | "activacion";
+  titulo?: string;
+  descripcion?: string;
   fecha?: string;
   slug?: string;
 }): Promise<Evento> {
+  const tipo = datos.tipo === "activacion" ? "activacion" : "matrimonio";
+  const colores = coloresPorTipo(tipo);
   const nombre1 = datos.nombre1.trim();
   const nombre2 = datos.nombre2.trim();
-  const slug = await slugDisponible(slugify(datos.slug || `${nombre1}-y-${nombre2}`));
+  const titulo = (datos.titulo ?? "").trim().slice(0, 200);
+  const slug = await slugDisponible(slugify(datos.slug || (tipo === "activacion" ? titulo || nombre1 : `${nombre1}-y-${nombre2}`)));
+  const modulos = tipo === "activacion" ? JSON.stringify([
+    { id: "registro", activo: true }, { id: "fotos", activo: true },
+    { id: "mesa", activo: false }, { id: "mensajes", activo: false }, { id: "mapa", activo: false },
+  ]) : "";
   const res = await ejecutar(
     `INSERT INTO eventos (slug, nombre1, nombre2, fecha, color_fondo, color_rosa,
-                          color_card, color_texto, color_dorado, pantalla_token)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                          color_card, color_texto, color_dorado, pantalla_token,
+                          tipo, titulo, descripcion, modulos)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       slug,
       nombre1,
       nombre2,
       (datos.fecha ?? "").trim(),
-      COLORES.fondo,
-      COLORES.rosa,
-      COLORES.card,
-      COLORES.texto,
-      COLORES.dorado,
+      colores.fondo,
+      colores.rosa,
+      colores.card,
+      colores.texto,
+      colores.dorado,
       newToken(),
+      tipo,
+      titulo,
+      (datos.descripcion ?? "").trim().slice(0, 3000),
+      modulos,
     ]
   );
   return (await uno<Evento>("SELECT * FROM eventos WHERE id = ?", [
@@ -80,6 +96,8 @@ const CAMPOS_TEXTO = [
   "banner",
   "banner_movil",
   "mapa",
+  "titulo",
+  "descripcion",
 ] as const;
 
 // Los campos que guardan una imagen subida: al reemplazarla o quitarla, el
@@ -115,6 +133,14 @@ export async function actualizarEvento(
   if ("banner_texto" in body) {
     sets.push("banner_texto = ?");
     valores.push(body.banner_texto ? 1 : 0);
+  }
+  if (body.tipo === "matrimonio" || body.tipo === "activacion") {
+    sets.push("tipo = ?");
+    valores.push(body.tipo);
+  }
+  if ("registro_config" in body) {
+    sets.push("registro_config = ?");
+    valores.push(normalizarRegistroConfig(body.registro_config));
   }
   if ("modulos" in body) {
     const modulos = normalizarModulos(body.modulos);
@@ -168,6 +194,7 @@ const POR_EVENTO = [
   "votaciones",
   "sorteos",
   "trivias",
+  "participantes",
 ];
 
 export async function eliminarEvento(evento: Evento) {
@@ -287,17 +314,19 @@ export async function resumenEvento(id: number) {
     mesas: number;
     mensajes: number;
     fotos: number;
+    participantes: number;
   }>(
     `SELECT
        (SELECT COUNT(*) FROM guests   WHERE evento_id = ?1) AS invitados,
        (SELECT COUNT(DISTINCT mesa) FROM guests WHERE evento_id = ?1 AND mesa <> '') AS mesas,
        (SELECT COUNT(*) FROM messages WHERE evento_id = ?1) AS mensajes,
-       (SELECT COUNT(*) FROM photos   WHERE evento_id = ?1) AS fotos`,
+       (SELECT COUNT(*) FROM photos   WHERE evento_id = ?1) AS fotos,
+       (SELECT COUNT(*) FROM participantes WHERE evento_id = ?1) AS participantes`,
     [id]
   );
-  return fila ?? { invitados: 0, mesas: 0, mensajes: 0, fotos: 0 };
+  return fila ?? { invitados: 0, mesas: 0, mensajes: 0, fotos: 0, participantes: 0 };
 }
 
 export function nombreEvento(e: Evento): string {
-  return `${e.nombre1} y ${e.nombre2}`;
+  return e.tipo === "activacion" ? e.titulo || e.nombre1 : `${e.nombre1} y ${e.nombre2}`;
 }

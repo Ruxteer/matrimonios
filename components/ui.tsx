@@ -87,6 +87,19 @@ export function Atajos({ evento, omitir }: { evento: Evento; omitir: ModuloId })
   const items = modulosActivos(evento).filter((m) => m.id !== omitir);
   if (!items.length) return null;
 
+  if (evento.tipo === "activacion") {
+    return (
+      <nav className="activation-shortcuts" aria-label="Más opciones del evento">
+        {items.map((m) => (
+          <Link key={m.id} href={`/${evento.slug}/${m.ruta}`}>
+            <IconoModulo id={m.id} className="h-4 w-4" />
+            <span>{m.boton}</span><span aria-hidden="true">→</span>
+          </Link>
+        ))}
+      </nav>
+    );
+  }
+
   return (
     <div className="mx-auto mt-10 grid w-full max-w-[280px] grid-cols-2 gap-4">
       {items.map((m) => (
