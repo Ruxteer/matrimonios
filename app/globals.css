@@ -160,8 +160,16 @@ body {
 @keyframes pista-derecha { 50% { transform: translateX(4px); } }
 @keyframes pista-izquierda { 50% { transform: translateX(-4px); } }
 .pista-mapa { animation: pista-entra .8s var(--curva-suave) 1s both; }
-.pista-flecha { display: inline-block; animation: pista-derecha 1.6s ease-in-out 1.6s 2; }
+.pista-flecha { animation: pista-derecha 1.6s ease-in-out 1.6s 2; }
 .pista-flecha-izquierda { animation-name: pista-izquierda; }
+/* En el teléfono se desliza; con mouse se arrastra. */
+.pista-mouse { display: none; }
+@media (pointer: fine) {
+  .pista-tactil { display: none; }
+  .pista-mouse { display: inline; }
+  .plano-arrastrable { cursor: grab; }
+  .plano-arrastrable:active { cursor: grabbing; }
+}
 
 /* La ficha de una zona: la foto se acerca suave, la hoja sube encima y lo que
    ofrece la zona aparece en orden. */
