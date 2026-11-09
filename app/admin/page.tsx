@@ -1,54 +1,42 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element -- ícono SVG del diseño a su tamaño exacto */
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Login from "@/components/admin/Login";
-import { modulosActivos } from "@/lib/modulos";
-import { etiquetaEvento } from "@/lib/identidad";
-import type { Evento } from "@/lib/db";
+import FormCliente from "@/components/admin/FormCliente";
+import { Bienvenida, MarcoVenito, TarjetaCliente } from "@/components/admin/Marca";
+import type { Cliente } from "@/lib/db";
 
-type Resumen = { participantes?: number; invitados: number; mesas: number; mensajes: number; fotos: number };
-type EventoConResumen = Evento & { resumen: Resumen };
+type ClienteConEventos = Cliente & { eventos: number };
 
+// Portada del panel (Figma "quick-wins", Desktop 1): Venito y cada cliente
+// como una tarjeta; dentro de cada una están sus eventos.
 export default function AdminInicio() {
   const router = useRouter();
-  const [eventos, setEventos] = useState<EventoConResumen[]>([]);
+  const [clientes, setClientes] = useState<ClienteConEventos[]>([]);
   const [authed, setAuthed] = useState<boolean | null>(null);
-  const [creando, setCreando] = useState(false);
-  const [nuevo, setNuevo] = useState({ tipo: "activacion", titulo: "", descripcion: "", nombre1: "", nombre2: "", fecha: "" });
-  const [error, setError] = useState("");
+  const [agregando, setAgregando] = useState(false);
+  const [errorCarga, setErrorCarga] = useState("");
 
   const load = useCallback(() => {
-    fetch("/api/eventos").then(async (r) => {
-      if (r.status === 401) {
-        setAuthed(false);
-        return;
-      }
-      setEventos(await r.json());
-      setAuthed(true);
-    });
+    fetch("/api/clientes")
+      .then(async (r) => {
+        if (r.status === 401) {
+          setAuthed(false);
+          return;
+        }
+        if (!r.ok) throw new Error();
+        setClientes(await r.json());
+        setErrorCarga("");
+        setAuthed(true);
+      })
+      .catch(() => setErrorCarga("No pudimos cargar los clientes. Revisa tu conexión e intenta otra vez."));
   }, []);
 
   useEffect(() => {
     load();
   }, [load]);
-
-  async function crear(e: React.FormEvent) {
-    e.preventDefault();
-    setError("");
-    const res = await fetch("/api/eventos", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(nuevo),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      setError(data.error ?? "No pudimos crear el evento.");
-      return;
-    }
-    router.push(`/admin/${data.slug}`);
-  }
 
   async function salir() {
     await fetch("/api/admin/login", { method: "DELETE" });
@@ -56,118 +44,60 @@ export default function AdminInicio() {
   }
 
   if (authed === false) return <Login onOk={load} />;
-  if (authed === null) return <p className="p-6 text-neutral-500">Cargando…</p>;
 
   return (
-    <main className="mx-auto max-w-3xl p-6">
-      <div className="flex items-baseline justify-between">
-        <h1 className="mb-1 text-2xl font-semibold">Eventos Venito</h1>
-        <button onClick={salir} className="text-sm text-neutral-400 hover:text-neutral-700">
-          Cerrar sesión
-        </button>
-      </div>
-      <p className="mb-6 text-sm text-neutral-500">
-        Matrimonios y activaciones, cada uno con su dirección, QR y participantes.
-      </p>
-
-      <div className="space-y-3">
-        {eventos.map((e) => (
-          <Link
-            key={e.id}
-            href={`/admin/${e.slug}`}
-            className="block rounded-xl border border-neutral-200 p-4 transition hover:border-neutral-400"
+    <MarcoVenito>
+      <main className="relative mx-auto w-full max-w-[986px] px-6 pt-16 md:pt-[180px]">
+        {authed && (
+          <button
+            onClick={salir}
+            className="absolute right-6 top-5 text-sm font-bold text-venito-gris hover:text-black md:top-[62px]"
           >
-            <div className="flex items-baseline justify-between gap-4">
-              <p className="font-medium">
-                {e.tipo === "activacion" ? "" : "Matrimonio de "}{etiquetaEvento(e)}
-              </p>
-              <p className="text-sm text-neutral-500">{e.fecha || "sin fecha"}</p>
-            </div>
-            <p className="mt-1 font-mono text-xs text-neutral-400">/{e.slug}</p>
-            <p className="mt-2 text-xs text-neutral-500">
-              {e.resumen.participantes ?? 0} registros · {e.tipo === "activacion" ? "" : `${e.resumen.invitados} invitados · `}
-              {e.resumen.mensajes} mensajes · {e.resumen.fotos} fotos ·{" "}
-              {modulosActivos(e).length} módulos
-            </p>
-          </Link>
-        ))}
-        {eventos.length === 0 && (
-          <p className="rounded-xl border border-dashed border-neutral-300 p-6 text-center text-sm text-neutral-400">
-            Aún no hay eventos. Crea el primero abajo.
-          </p>
+            Cerrar sesión
+          </button>
         )}
-      </div>
+        <Bienvenida />
 
-      {creando ? (
-        <form onSubmit={crear} className="mt-6 rounded-xl border border-neutral-200 p-4">
-          <p className="mb-3 font-medium">Nuevo evento</p>
-          <label className="mb-4 block text-sm">
-            <span className="mb-1 block">Tipo de experiencia</span>
-            <select value={nuevo.tipo} onChange={(e) => setNuevo({ ...nuevo, tipo: e.target.value })} className="w-full rounded-lg border border-neutral-300 p-2">
-              <option value="matrimonio">Matrimonio</option>
-              <option value="activacion">Activación de marca o evento</option>
-            </select>
-          </label>
-          {nuevo.tipo === "activacion" && <div className="mb-3 space-y-3">
-            <label className="block text-sm">Nombre del evento
-              <input required value={nuevo.titulo} onChange={(e) => setNuevo({ ...nuevo, titulo: e.target.value })} className="mt-1 w-full rounded-lg border border-neutral-300 p-2" />
-            </label>
-            <label className="block text-sm">Mensaje de bienvenida
-              <textarea value={nuevo.descripcion} onChange={(e) => setNuevo({ ...nuevo, descripcion: e.target.value })} className="mt-1 w-full rounded-lg border border-neutral-300 p-2" />
-            </label>
-          </div>}
-          <div className="mb-3 grid gap-3 sm:grid-cols-3">
-            <input
-              value={nuevo.nombre1}
-              onChange={(ev) => setNuevo({ ...nuevo, nombre1: ev.target.value })}
-              placeholder="Nombre de la novia"
-              aria-label="Nombre de la novia"
-              hidden={nuevo.tipo === "activacion"}
-              required={nuevo.tipo === "matrimonio"}
-              className="rounded-lg border border-neutral-300 px-3 py-2 text-sm"
-            />
-            <input
-              value={nuevo.nombre2}
-              onChange={(ev) => setNuevo({ ...nuevo, nombre2: ev.target.value })}
-              placeholder="Nombre del novio"
-              aria-label="Nombre del novio"
-              hidden={nuevo.tipo === "activacion"}
-              required={nuevo.tipo === "matrimonio"}
-              className="rounded-lg border border-neutral-300 px-3 py-2 text-sm"
-            />
-            <input
-              value={nuevo.fecha}
-              onChange={(ev) => setNuevo({ ...nuevo, fecha: ev.target.value })}
-              placeholder="Fecha del evento"
-              aria-label="Fecha del evento"
-              className="rounded-lg border border-neutral-300 px-3 py-2 text-sm"
-            />
-          </div>
-          {error && <p className="mb-3 text-sm text-rose-600">{error}</p>}
-          <div className="flex gap-2">
-            <button
-              type="submit"
-              className="rounded-lg bg-neutral-900 px-4 py-2 text-sm text-white hover:bg-neutral-700"
-            >
-              Crear
-            </button>
-            <button
-              type="button"
-              onClick={() => setCreando(false)}
-              className="rounded-lg border border-neutral-300 px-4 py-2 text-sm hover:bg-neutral-50"
-            >
-              Cancelar
+        {errorCarga ? (
+          <div className="mt-12" role="alert">
+            <p>{errorCarga}</p>
+            <button onClick={load} className="mt-4 rounded-full border-2 border-neutral-200 px-5 py-2">
+              Reintentar
             </button>
           </div>
-        </form>
-      ) : (
-        <button
-          onClick={() => setCreando(true)}
-          className="mt-6 rounded-lg bg-neutral-900 px-4 py-2 text-sm text-white hover:bg-neutral-700"
-        >
-          + Nuevo evento
-        </button>
-      )}
-    </main>
+        ) : authed === null ? (
+          <p className="mt-12 text-venito-gris md:mt-[88px]">Cargando…</p>
+        ) : (
+          <>
+            <ul className="mt-12 flex flex-wrap gap-4 md:mt-[88px]" aria-label="Clientes">
+              {clientes.map((c) => (
+                <li key={c.id}>
+                  <TarjetaCliente cliente={c} />
+                </li>
+              ))}
+              <li>
+                <button
+                  onClick={() => setAgregando(true)}
+                  aria-expanded={agregando}
+                  className="flex size-[160px] flex-col items-center gap-[3px] rounded-[38px] border-[3px] border-dashed border-venito-gris pt-[35px] text-venito-gris transition hover:border-black hover:text-black"
+                >
+                  <img src="/brand/mas-grande.svg" alt="" className="size-[39.1667px]" />
+                  <span className="w-[120px] text-center text-[22px] leading-[28px]">
+                    Agregar cliente
+                  </span>
+                </button>
+              </li>
+            </ul>
+
+            {agregando && (
+              <FormCliente
+                onCancelar={() => setAgregando(false)}
+                onListo={(c) => router.push(`/admin/clientes/${c.slug}`)}
+              />
+            )}
+          </>
+        )}
+      </main>
+    </MarcoVenito>
   );
 }

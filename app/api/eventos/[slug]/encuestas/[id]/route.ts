@@ -3,6 +3,7 @@ import { consultar, ejecutar, uno } from "@/lib/db";
 import type { Encuesta, PreguntaEncuesta, TipoPregunta } from "@/lib/db";
 import { noAutorizado, puedeAdministrar } from "@/lib/auth";
 import { getEvento } from "@/lib/eventos";
+import { EMOJIS_PREDETERMINADOS, limpiarEmojis } from "@/lib/encuestas";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,7 @@ const TIPOS: TipoPregunta[] = [
   "multiple",
   "escala",
   "si_no",
+  "emoji",
 ];
 
 function esTipo(valor: unknown): valor is TipoPregunta {
@@ -40,6 +42,11 @@ function leerLista(valor: unknown): unknown[] {
 }
 
 function normalizarOpciones(valor: unknown, tipo: TipoPregunta): string {
+  // Hasta cinco emojis; si no llega ninguno válido, van los de siempre.
+  if (tipo === "emoji") {
+    const emojis = limpiarEmojis(leerLista(valor));
+    return JSON.stringify(emojis.length >= 2 ? emojis : EMOJIS_PREDETERMINADOS);
+  }
   if (tipo !== "unica" && tipo !== "multiple") return "";
   const opciones = leerLista(valor)
     .map((o) => String(o ?? "").trim().slice(0, 120))

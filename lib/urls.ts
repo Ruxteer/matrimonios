@@ -14,3 +14,9 @@ export function urlFotoPantalla(archivo: string, slug: string, clave: string): s
   if (!url.startsWith("/api/archivos/")) return url;
   return `${url}?${new URLSearchParams({ evento: slug, k: clave })}`;
 }
+
+/** Lo que devuelve /api/archivos al subir una imagen: veinte hex y la extensión. */
+export function archivoSubido(valor: unknown): string {
+  const v = typeof valor === "string" ? valor.trim() : "";
+  return /^[a-f0-9]{20}\.[a-z]{3,4}$/.test(v) ? v : "";
+}

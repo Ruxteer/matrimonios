@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import PantallaSalon, { type ModoPantalla } from "@/components/PantallaSalon";
-import { cookieAdminValida } from "@/lib/auth";
+import ClaveInvalida from "@/components/pantalla/ClaveInvalida";
+import { cookieAdminValida, esAdminDeEventoCookie } from "@/lib/auth";
 import { eventoPublico, getEvento, nombreEvento, tokenPantallaValido } from "@/lib/eventos";
 import { datosPantalla } from "@/lib/pantalla";
 
@@ -36,7 +37,8 @@ export default async function Pantalla({ params, searchParams }: Props) {
   const galletas = await cookies();
   const permitido =
     tokenPantallaValido(evento, clave) ||
-    cookieAdminValida(galletas.get("admin")?.value ?? "");
+    cookieAdminValida(galletas.get("admin")?.value ?? "") ||
+    esAdminDeEventoCookie(evento, galletas.get("evento")?.value ?? "");
   if (!permitido) return <ClaveInvalida />;
 
   const modo = texto(query.modo);
@@ -48,17 +50,5 @@ export default async function Pantalla({ params, searchParams }: Props) {
       modo={modo === "fotos" || modo === "mensajes" ? (modo as ModoPantalla) : "todo"}
       fondoOscuro={texto(query.fondo) === "oscuro"}
     />
-  );
-}
-
-function ClaveInvalida() {
-  return (
-    <main className="flex h-dvh flex-col items-center justify-center p-6 text-center">
-      <h1 className="mb-2 text-xl font-semibold">Esta dirección no es válida</h1>
-      <p className="max-w-sm text-sm text-neutral-500">
-        La pantalla en vivo se abre con el enlace que aparece en el panel del evento,
-        en Ajustes.
-      </p>
-    </main>
   );
 }

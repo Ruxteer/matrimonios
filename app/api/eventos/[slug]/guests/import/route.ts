@@ -11,6 +11,7 @@ const HEADER_MAP: Record<string, string> = {
   "nombre completo": "nombre_completo",
   nombre: "nombre",
   invitado: "nombre",
+  participante: "nombre",
   apellido: "apellido",
   telefono: "telefono",
   fono: "telefono",
@@ -22,6 +23,8 @@ const HEADER_MAP: Record<string, string> = {
   familia: "grupo",
   mesa: "mesa",
   "mesa asignada": "mesa",
+  sector: "mesa",
+  "sector asignado": "mesa",
   estado: "estado",
   "estado invitacion": "estado",
   cupos: "cupos",
@@ -147,10 +150,11 @@ export async function POST(
     });
   }
 
-  // Los invitados que ya están se piden de una vez: así la importación son
-  // dos viajes a la base y no uno por fila.
+  // Los participantes que ya están se piden de una vez: así la importación son
+  // dos viajes a la base y no uno por fila. Los eliminados no cuentan: si
+  // vuelven en la planilla, entran como nuevos.
   const existentes = await consultar<{ id: number; nombre: string }>(
-    "SELECT id, nombre FROM guests WHERE evento_id = ?",
+    "SELECT id, nombre FROM guests WHERE evento_id = ? AND eliminado_at = ''",
     [evento.id]
   );
   const idPorNombre = new Map(existentes.map((g) => [g.nombre.toLowerCase(), g.id]));

@@ -3,16 +3,9 @@ import TriviaInvitado, { type TriviaPublica } from "@/components/TriviaInvitado"
 import { Atajos, Titulo, Vacio } from "@/components/ui";
 import { consultar, type PreguntaTrivia, type Trivia } from "@/lib/db";
 import { getEvento } from "@/lib/eventos";
+import { textosModulo } from "@/lib/textos";
 import { moduloActivo } from "@/lib/modulos";
-
-function alternativas(json: string): string[] {
-  try {
-    const valor = JSON.parse(json || "[]");
-    return Array.isArray(valor) ? valor.map((v) => String(v)) : [];
-  } catch {
-    return [];
-  }
-}
+import { preguntaPublica } from "@/lib/trivia";
 
 export default async function TriviaPage({
   params,
@@ -40,16 +33,12 @@ export default async function TriviaPage({
   // correctas y la explicación: eso llega recién al enviar la partida.
   const jugables: TriviaPublica[] = trivias
     .map((t) => ({
-      id: t.id,
-      titulo: t.titulo,
-      descripcion: t.descripcion,
+      id: Number(t.id),
+      titulo: String(t.titulo),
+      descripcion: String(t.descripcion),
       preguntas: preguntas
         .filter((p) => p.trivia_id === t.id)
-        .map((p) => ({
-          id: p.id,
-          enunciado: p.enunciado,
-          opciones: alternativas(p.opciones),
-        })),
+        .map(preguntaPublica),
     }))
     .filter((t) => t.preguntas.length > 0);
 
@@ -57,10 +46,10 @@ export default async function TriviaPage({
     <>
       {/* El título de la página no repite el de la trivia: la que carga el
           organizador casi siempre se llama "¿Cuánto conoces a los novios?". */}
-      <Titulo>Pon a prueba lo que sabes</Titulo>
+      <Titulo>{textosModulo(evento, "trivia").titulo}</Titulo>
 
       {jugables.length ? (
-        <TriviaInvitado slug={evento.slug} trivias={jugables} />
+        <TriviaInvitado slug={evento.slug} trivias={jugables} activacion={evento.tipo === "activacion"} />
       ) : (
         <Vacio>Todavía no hay ninguna trivia.</Vacio>
       )}

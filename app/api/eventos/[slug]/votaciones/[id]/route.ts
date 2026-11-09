@@ -114,6 +114,10 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
     sets.push("resultados = ?");
     valores.push(body.resultados);
   }
+  if ("pide_datos" in body) {
+    sets.push("pide_datos = ?");
+    valores.push(body.pide_datos ? 1 : 0);
+  }
   if ("abierta" in body) {
     sets.push("abierta = ?");
     valores.push(body.abierta ? 1 : 0);

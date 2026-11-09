@@ -6,6 +6,7 @@ import { moduloActivo } from "@/lib/modulos";
 import { registroConfig } from "@/lib/registro";
 import { participanteActual } from "@/lib/registro-servidor";
 import { contarFotos } from "@/lib/fotos";
+import { textosModulo, textosPropios } from "@/lib/textos";
 
 export default async function FotoPage({
   params,
@@ -23,7 +24,7 @@ export default async function FotoPage({
   return (
     <>
       {!activacion && <h2 className="mb-5 text-center font-serif text-lg font-bold">
-        Comparte tus mejores momentos
+        {textosModulo(evento, "fotos").titulo}
       </h2>}
 
       <SubirFoto
@@ -34,6 +35,7 @@ export default async function FotoPage({
         fotosUsadas={fotosUsadas}
         moderacion={config.fotos_moderacion}
         activacion={activacion}
+        titulo={activacion ? textosPropios(evento, "fotos").titulo : undefined}
       />
 
       <Atajos evento={evento} omitir="fotos" />

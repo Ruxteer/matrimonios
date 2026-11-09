@@ -65,7 +65,8 @@ export async function POST(req: NextRequest, { params }: Ctx) {
   // menos ni de más. Una pregunta sin correctas no la acierta nadie.
   const detalle = preguntas.map((p) => {
     const correctas = correctasDe(p.correctas);
-    const marcadas = elegidas.get(p.id) ?? [];
+    // Con selección única cuenta una sola marca, aunque lleguen más.
+    const marcadas = (elegidas.get(p.id) ?? []).slice(0, p.multiple ? undefined : 1);
     const acerto =
       correctas.length > 0 &&
       correctas.length === marcadas.length &&

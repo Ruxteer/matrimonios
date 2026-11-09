@@ -3,6 +3,7 @@ import VotacionInvitado, { type VotacionPublica } from "@/components/VotacionInv
 import { Atajos, Titulo, Vacio } from "@/components/ui";
 import { consultar, type OpcionVotacion, type Votacion } from "@/lib/db";
 import { getEvento } from "@/lib/eventos";
+import { textosModulo } from "@/lib/textos";
 import { moduloActivo } from "@/lib/modulos";
 
 export default async function VotacionPage({
@@ -47,7 +48,7 @@ export default async function VotacionPage({
 
   return (
     <>
-      <Titulo>Vota y elige tu favorita</Titulo>
+      <Titulo>{textosModulo(evento, "votaciones").titulo}</Titulo>
 
       {abiertas.length === 0 ? (
         <Vacio>Todavía no hay ninguna votación.</Vacio>

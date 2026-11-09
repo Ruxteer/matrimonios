@@ -3,6 +3,8 @@ import { Atajos, Tarjeta, Titulo, Vacio } from "@/components/ui";
 import { consultar, type Actividad } from "@/lib/db";
 import { getEvento } from "@/lib/eventos";
 import { moduloActivo } from "@/lib/modulos";
+import { textosModulo } from "@/lib/textos";
+import { urlArchivo } from "@/lib/urls";
 
 export default async function AgendaPage({
   params,
@@ -28,7 +30,7 @@ export default async function AgendaPage({
 
   return (
     <>
-      <Titulo>El programa del día</Titulo>
+      <Titulo>{textosModulo(evento, "agenda").titulo}</Titulo>
 
       {actividades.length === 0 ? (
         <Vacio>El programa de la celebración se publicará pronto.</Vacio>
@@ -58,18 +60,31 @@ export default async function AgendaPage({
                     <span className="absolute left-1/2 top-[21px] h-2 w-2 -translate-x-1/2 rounded-full bg-rosa" />
                   </div>
                   <div className="min-w-0 flex-1 pb-3">
-                    <Tarjeta>
-                      <p className="font-serif text-sm font-bold">{actividad.titulo}</p>
-                      {actividad.lugar && (
-                        <p className="mt-1 font-serif text-xs font-bold text-dorado">
-                          {actividad.lugar}
-                        </p>
+                    {/* Con foto, la imagen va a la izquierda y el texto al lado;
+                        sin foto, la tarjeta queda como siempre. */}
+                    <Tarjeta className={actividad.imagen ? "flex items-center gap-3 p-[9px]!" : ""}>
+                      {actividad.imagen && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={urlArchivo(actividad.imagen)}
+                          alt=""
+                          loading="lazy"
+                          className="h-[68px] w-[82px] shrink-0 rounded-[12px] object-cover"
+                        />
                       )}
-                      {actividad.descripcion && (
-                        <p className="mt-2 text-xs leading-snug opacity-80">
-                          {actividad.descripcion}
-                        </p>
-                      )}
+                      <div className="min-w-0">
+                        <p className="font-serif text-sm font-bold">{actividad.titulo}</p>
+                        {actividad.lugar && (
+                          <p className="mt-1 font-serif text-xs font-bold text-dorado">
+                            {actividad.lugar}
+                          </p>
+                        )}
+                        {actividad.descripcion && (
+                          <p className={`${actividad.imagen ? "mt-1" : "mt-2"} text-xs leading-snug opacity-80`}>
+                            {actividad.descripcion}
+                          </p>
+                        )}
+                      </div>
                     </Tarjeta>
                   </div>
                 </li>

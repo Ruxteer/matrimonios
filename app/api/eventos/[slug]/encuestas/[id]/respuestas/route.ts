@@ -29,6 +29,7 @@ function normalizarValor(pregunta: PreguntaEncuesta, valor: unknown): string {
         .filter((o) => o && (!opciones.length || opciones.includes(o)));
       return elegidas.length ? JSON.stringify([...new Set(elegidas)]) : "";
     }
+    case "emoji":
     case "unica": {
       const elegida = String(valor ?? "").trim();
       return !opciones.length || opciones.includes(elegida) ? elegida : "";

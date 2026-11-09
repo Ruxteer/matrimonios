@@ -1,5 +1,7 @@
+import crypto from "crypto";
 import ExcelJS from "exceljs";
-import { consultar, db, type Sorteo } from "./db";
+import { consultar, db, ejecutar, uno, type Sorteo } from "./db";
+import { urlArchivo } from "./urls";
 
 // Todo lo que necesita un sorteo para saber quién entra al bombo: leer la base
 // que sube el organizador (Excel o CSV), reconocer sus columnas y distinguir a
@@ -346,7 +348,7 @@ export type Participante = {
 };
 
 // Un RUT se escribe con y sin puntos; un correo, con mayúsculas o no.
-function claveDe(valor: string): string {
+export function claveDe(valor: string): string {
   const limpio = normalizar(valor).replace(/\s/g, "");
   return /^[\d.]+-?[\dk]$/.test(limpio) ? limpio.replace(/[.-]/g, "") : limpio;
 }
@@ -380,6 +382,18 @@ export async function participantesDeSorteo(
       .split("\n")
       .map((l) => l.trim())
       .map((nombre) => ({ nombre, clave: `n:${normalizar(nombre)}` }));
+  } else if (sorteo.fuente === "inscritos") {
+    // Quienes se anotaron con el QR: el correo los distingue, igual que en una
+    // base con columna de correo (así "no repetir ganadores" cruza las dos).
+    const filas = await consultar<{ nombre: string; email: string; email_normalizado: string }>(
+      "SELECT nombre, email, email_normalizado FROM sorteo_inscritos WHERE sorteo_id = ? ORDER BY id",
+      [sorteo.id]
+    );
+    todos = filas.map((f) => ({
+      nombre: String(f.nombre).trim(),
+      clave: `id:${String(f.email_normalizado)}`,
+      datos: { Correo: String(f.email) },
+    }));
   } else if (sorteo.fuente === "mensajes") {
     const filas = await consultar<{ nombre: string }>(
       `SELECT DISTINCT TRIM(nombre) AS nombre FROM messages
@@ -388,16 +402,16 @@ export async function participantesDeSorteo(
     );
     todos = filas.map((f) => ({ nombre: String(f.nombre), clave: `n:${normalizar(f.nombre)}` }));
   } else {
-    // Invitados: la mesa y el grupo ayudan a ubicar al ganador en el salón.
+    // Participantes de la lista: el sector y el grupo ayudan a ubicar al ganador.
     const filas = await consultar<{ nombre: string; mesa: string; grupo: string }>(
       `SELECT TRIM(nombre) AS nombre, mesa, grupo FROM guests
-        WHERE evento_id = ? AND TRIM(nombre) <> '' ORDER BY nombre`,
+        WHERE evento_id = ? AND TRIM(nombre) <> '' AND eliminado_at = '' ORDER BY nombre`,
       [eventoId]
     );
     todos = filas.map((f) => ({
       nombre: String(f.nombre),
       clave: `n:${normalizar(f.nombre)}`,
-      datos: { Mesa: String(f.mesa ?? ""), Grupo: String(f.grupo ?? "") },
+      datos: { Sector: String(f.mesa ?? ""), Grupo: String(f.grupo ?? "") },
     }));
   }
 
@@ -458,5 +472,165 @@ export async function ganadoresAnteriores(eventoId: number, excepto: number) {
     yaGano: (p: Participante) =>
       p.clave.startsWith("id:") ? claves.has(p.clave) : nombres.has(normalizar(p.nombre)),
     alguno: claves.size + nombres.size > 0,
+  };
+}
+
+// ------------------------------------------------------------- sortear
+
+/** Quiénes entran al bombo: todos los de la fuente, menos los que ya ganaron si así se pidió. */
+export async function candidatosDeSorteo(sorteo: Sorteo, eventoId: number) {
+  const todos = await participantesDeSorteo(sorteo, eventoId);
+  const anteriores = sorteo.excluir_anteriores ? await ganadoresAnteriores(eventoId, sorteo.id) : null;
+  const candidatos = anteriores ? todos.filter((p) => !anteriores.yaGano(p)) : todos;
+  return { todos, candidatos, anteriores };
+}
+
+type Sorteado =
+  | { ok: true; sorteo: Sorteo; disponibles: number }
+  | { ok: false; error: string; status: number };
+
+/**
+ * Saca a los ganadores y los suplentes y deja el resultado guardado. Lo usan
+ * el panel (que puede volver a sortear) y la pantalla del salón, que solo
+ * puede sortear una vez: con `soloSiPendiente`, si alguien se adelantó desde
+ * otra pantalla o el panel, no se pisa lo que ya salió.
+ */
+export async function realizarSorteo(
+  sorteo: Sorteo,
+  eventoId: number,
+  { soloSiPendiente = false } = {}
+): Promise<Sorteado> {
+  const { todos, candidatos, anteriores } = await candidatosDeSorteo(sorteo, eventoId);
+
+  if (!candidatos.length) {
+    return {
+      ok: false,
+      status: 400,
+      error:
+        todos.length && anteriores?.alguno
+          ? "No queda nadie por sortear: todos ya ganaron en otro sorteo."
+          : sorteo.fuente === "base"
+            ? "La base no tiene participantes con nombre. Revisa qué columna tiene el nombre."
+            : sorteo.fuente === "inscritos"
+              ? "Todavía no se inscribe nadie en este sorteo."
+              : "No hay participantes en la fuente elegida.",
+    };
+  }
+  if (candidatos.length < sorteo.cantidad) {
+    return {
+      ok: false,
+      status: 400,
+      error:
+        `Hay ${candidatos.length} participantes disponibles y el sorteo ` +
+        `reparte ${sorteo.cantidad} premios.`,
+    };
+  }
+
+  // Fisher-Yates con crypto.randomInt: el azar del sorteo tiene que poder
+  // defenderse frente a los participantes, y Math.random no da esa garantía.
+  const bombo = [...candidatos];
+  for (let i = bombo.length - 1; i > 0; i--) {
+    const j = crypto.randomInt(i + 1);
+    [bombo[i], bombo[j]] = [bombo[j], bombo[i]];
+  }
+  const ganadores = bombo.slice(0, sorteo.cantidad);
+  // Los suplentes salen del mismo bombo, después de los ganadores. Si no alcanza
+  // para todos, se sacan los que haya.
+  const suplentes = bombo.slice(sorteo.cantidad, sorteo.cantidad + sorteo.cantidad_suplentes);
+
+  const detalle: Resultado[] = [
+    ...ganadores.map((p, i) => ({ ...p, suplente: false, orden: i + 1 })),
+    ...suplentes.map((p, i) => ({ ...p, suplente: true, orden: i + 1 })),
+  ];
+
+  const res = await ejecutar(
+    `UPDATE sorteos SET ganadores = ?, suplentes = ?, detalle = ?, disponibles = ?,
+                        ejecutado_at = datetime('now')
+      WHERE id = ? AND evento_id = ?${soloSiPendiente ? " AND ejecutado_at = ''" : ""}`,
+    [
+      JSON.stringify(ganadores.map((p) => p.nombre)),
+      JSON.stringify(suplentes.map((p) => p.nombre)),
+      JSON.stringify(detalle),
+      candidatos.length,
+      sorteo.id,
+      eventoId,
+    ]
+  );
+  if (!res.rowsAffected) return { ok: false, status: 409, error: "Este sorteo ya se realizó." };
+  const actualizado = await uno<Sorteo>("SELECT * FROM sorteos WHERE id = ?", [sorteo.id]);
+  return { ok: true, sorteo: actualizado!, disponibles: candidatos.length };
+}
+
+// ------------------------------------------------------ inscripción y pantalla
+
+/** La fecha del sorteo ya pasó (sin fecha, se puede sortear cuando se quiera). */
+export function llegoLaHora(sorteo: Pick<Sorteo, "fecha_sorteo">, ahora = Date.now()): boolean {
+  if (!sorteo.fecha_sorteo) return true;
+  const cuando = Date.parse(sorteo.fecha_sorteo);
+  return Number.isNaN(cuando) || cuando <= ahora;
+}
+
+/** Se aceptan inscripciones hasta la hora del sorteo o hasta que se realice. */
+export function inscripcionAbierta(sorteo: Pick<Sorteo, "fuente" | "ejecutado_at" | "fecha_sorteo">): boolean {
+  if (sorteo.fuente !== "inscritos" || sorteo.ejecutado_at) return false;
+  if (!sorteo.fecha_sorteo) return true;
+  return !llegoLaHora(sorteo);
+}
+
+export type SorteoPantalla = {
+  id: number;
+  titulo: string;
+  premio: string;
+  imagen: string;
+  fecha_sorteo: string;
+  cantidad: number;
+  fuente: Sorteo["fuente"];
+  ejecutado_at: string;
+  ganadores: string[];
+  /** Cuántas personas entran al bombo ahora mismo (no viene si no se pidió). */
+  participantes?: number;
+  /** Una muestra de nombres para la lista y la animación (solo si se pidió). */
+  nombres?: string[];
+  inscripcion: boolean;
+  /** Hora del servidor, para que la cuenta regresiva no dependa del reloj del notebook. */
+  ahora: string;
+};
+
+const MUESTRA_PANTALLA = 150;
+
+// Lo que ve la pantalla del sorteo. Los nombres son lo único de las personas
+// que sale: ni correos ni las columnas de la base.
+// Contar obliga a leer a todos los participantes (una base puede tener miles de
+// filas), así que la pantalla solo lo pide cada tanto; el estado del sorteo es
+// una sola fila y se puede consultar seguido.
+export async function sorteoParaPantalla(
+  sorteo: Sorteo,
+  eventoId: number,
+  { nombres = false, conteo = true } = {}
+): Promise<SorteoPantalla> {
+  const candidatos = conteo || nombres ? (await candidatosDeSorteo(sorteo, eventoId)).candidatos : null;
+  let muestra: string[] | undefined;
+  if (nombres && candidatos) {
+    const copia = candidatos.map((p) => p.nombre);
+    for (let i = copia.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [copia[i], copia[j]] = [copia[j], copia[i]];
+    }
+    muestra = copia.slice(0, MUESTRA_PANTALLA);
+  }
+  return {
+    id: Number(sorteo.id),
+    titulo: String(sorteo.titulo),
+    premio: String(sorteo.premio),
+    imagen: urlArchivo(String(sorteo.imagen ?? "")),
+    fecha_sorteo: String(sorteo.fecha_sorteo ?? ""),
+    cantidad: Number(sorteo.cantidad),
+    fuente: sorteo.fuente,
+    ejecutado_at: String(sorteo.ejecutado_at ?? ""),
+    ganadores: leerNombres(String(sorteo.ganadores ?? "")),
+    participantes: candidatos?.length,
+    nombres: muestra,
+    inscripcion: inscripcionAbierta(sorteo),
+    ahora: new Date().toISOString(),
   };
 }

@@ -1,5 +1,6 @@
 import { consultar, uno, type Evento } from "./db";
 import { moduloActivo } from "./modulos";
+import { PANTALLA_DEFAULT, pantallaConfig, type PantallaConfig } from "./pantalla-config";
 import { urlFotoPantalla } from "./urls";
 import type { Row } from "@libsql/client";
 
@@ -19,6 +20,9 @@ export type DatosPantalla = {
   fotos: FotoPantalla[];
   mensajes: MensajePantalla[];
   totales: { fotos: number; mensajes: number };
+  /** Cuántas fotos y mensajes van a la vez. Viaja en cada sondeo para que un
+   * cambio en el panel se vea sin recargar la pantalla. */
+  config: PantallaConfig;
 };
 
 // Las filas que devuelve libSQL no son objetos planos, y esto viaja del
@@ -30,7 +34,7 @@ const txt = (v: Row[string]) => String(v ?? "");
 // subió alguien, que es lo que la gente quiere ver.
 export async function datosPantalla(eventoId: number): Promise<DatosPantalla> {
   const evento = await uno<Evento>("SELECT * FROM eventos WHERE id = ?", [eventoId]);
-  if (!evento) return { fotos: [], mensajes: [], totales: { fotos: 0, mensajes: 0 } };
+  if (!evento) return { fotos: [], mensajes: [], totales: { fotos: 0, mensajes: 0 }, config: PANTALLA_DEFAULT };
   const muestraFotos = moduloActivo(evento, "fotos");
   const muestraMensajes = moduloActivo(evento, "mensajes");
   const [fotos, mensajes, totales] = await Promise.all([
@@ -65,5 +69,6 @@ export async function datosPantalla(eventoId: number): Promise<DatosPantalla> {
       fotos: num(totales[0]?.fotos),
       mensajes: num(totales[0]?.mensajes),
     },
+    config: pantallaConfig(evento),
   };
 }

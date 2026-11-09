@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { Sorteo } from "@/lib/db";
+import type { EventoPanel } from "@/lib/eventos";
 import type { Resultado } from "@/lib/sorteos";
+import CampoImagen from "./CampoImagen";
+import { urlPantallaEvento } from "./AjustesPantalla";
 
 type SorteoAdmin = Sorteo & {
   participantes: number;
@@ -12,11 +15,24 @@ type SorteoAdmin = Sorteo & {
 // El documento del módulo también menciona sortear entre quienes subieron
 // fotos, pero la tabla photos no guarda quién subió cada imagen.
 const FUENTES = [
-  { valor: "invitados", label: "Todos los invitados" },
+  { valor: "invitados", label: "Todos los participantes de la lista" },
+  { valor: "inscritos", label: "Quienes se inscriban con el QR (nombre y correo)" },
   { valor: "mensajes", label: "Quienes dejaron un mensaje" },
   { valor: "lista", label: "Una lista escrita aquí" },
   { valor: "base", label: "Una base de datos (Excel o CSV)" },
 ];
+
+// La fecha del sorteo se guarda en ISO (UTC) y se edita en la hora local del
+// navegador, que es la del organizador.
+function aLocal(iso: string): string {
+  const fecha = iso ? new Date(iso) : null;
+  if (!fecha || Number.isNaN(fecha.getTime())) return "";
+  return new Date(fecha.getTime() - fecha.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
+function aIso(local: string): string {
+  const fecha = local ? new Date(local) : null;
+  return fecha && !Number.isNaN(fecha.getTime()) ? fecha.toISOString() : "";
+}
 
 // ejecutado_at viene de SQLite en UTC y sin zona horaria.
 function hora(ejecutado_at: string): string {
@@ -40,7 +56,8 @@ function leerJson<T>(json: string, porDefecto: T): T {
 
 const miles = (n: number) => n.toLocaleString("es-CL");
 
-export default function Sorteos({ slug }: { slug: string }) {
+export default function Sorteos({ evento }: { evento: EventoPanel }) {
+  const slug = evento.slug;
   const [sorteos, setSorteos] = useState<SorteoAdmin[]>([]);
   const [estado, setEstado] = useState("");
 
@@ -79,9 +96,10 @@ export default function Sorteos({ slug }: { slug: string }) {
         >
           Nuevo sorteo
         </button>
-        <p className="text-sm text-neutral-500">
-          Los sorteos publicados se ven en /{slug}/sorteo. Los ganadores aparecen
-          recién cuando ejecutas el sorteo.
+        <p className="max-w-2xl text-sm text-neutral-500">
+          Los sorteos publicados se ven en /{slug}/sorteo. Con «Ver pantalla» lo proyectas:
+          foto del premio, cuántos participan y la cuenta regresiva; al llegar la hora
+          aparece el botón «Realizar sorteo» y el ganador sale en grande.
         </p>
       </div>
 
@@ -91,7 +109,7 @@ export default function Sorteos({ slug }: { slug: string }) {
         sorteos.map((sorteo) => (
           <Ficha
             key={sorteo.id}
-            slug={slug}
+            evento={evento}
             sorteo={sorteo}
             recargar={cargar}
             avisar={setEstado}
@@ -105,18 +123,19 @@ export default function Sorteos({ slug }: { slug: string }) {
 }
 
 function Ficha({
-  slug,
+  evento,
   sorteo,
   recargar,
   avisar,
 }: {
-  slug: string;
+  evento: EventoPanel;
   sorteo: SorteoAdmin;
   recargar: () => void;
   avisar: (mensaje: string) => void;
 }) {
   const [form, setForm] = useState(sorteo);
   const [ocupado, setOcupado] = useState(false);
+  const slug = evento.slug;
   const url = `/api/eventos/${slug}/sorteos/${sorteo.id}`;
 
   const ganadores = leerJson<string[]>(sorteo.ganadores, []);
@@ -128,7 +147,7 @@ function Ficha({
   // en vivo, frente a todos, eso no tiene arreglo.
   const hayCambios =
     sinGuardar ||
-    (["titulo", "premio", "cantidad", "cantidad_suplentes", "excluir_anteriores", "publicado"] as const)
+    (["titulo", "premio", "fecha_sorteo", "cantidad", "cantidad_suplentes", "excluir_anteriores", "publicado"] as const)
       .some((campo) => form[campo] !== sorteo[campo]);
 
   async function guardar() {
@@ -139,6 +158,7 @@ function Ficha({
       body: JSON.stringify({
         titulo: form.titulo,
         premio: form.premio,
+        fecha_sorteo: form.fecha_sorteo,
         fuente: form.fuente,
         lista: form.lista,
         cantidad: form.cantidad,
@@ -173,6 +193,18 @@ function Ficha({
     recargar();
   }
 
+  // La foto del premio se guarda al subirla: una imagen sin guardar queda huérfana.
+  async function cambiarImagen(imagen: string) {
+    const res = await fetch(url, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ imagen }),
+    });
+    if (!res.ok) throw new Error("No pudimos guardar la foto del premio.");
+    avisar(imagen ? "Foto del premio guardada" : "Foto del premio quitada");
+    recargar();
+  }
+
   async function eliminar() {
     if (!confirm(`¿Eliminar el sorteo "${sorteo.titulo}"? También se borran sus ganadores.`))
       return;
@@ -189,10 +221,11 @@ function Ficha({
     <section className="space-y-3 rounded-xl border border-neutral-200 p-4">
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="text-sm">
-          <span className="mb-1 block text-neutral-500">Nombre del sorteo</span>
+          <span className="mb-1 block text-neutral-500">Nombre del sorteo (el título en pantalla)</span>
           <input
             value={form.titulo}
             onChange={(e) => setForm({ ...form, titulo: e.target.value })}
+            placeholder="¡Gana un viaje a Italia!"
             className="w-full rounded-lg border border-neutral-300 px-3 py-2"
           />
         </label>
@@ -204,6 +237,36 @@ function Ficha({
             placeholder="Una noche en el hotel"
             className="w-full rounded-lg border border-neutral-300 px-3 py-2"
           />
+        </label>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <CampoImagen
+          valor={sorteo.imagen}
+          onCambio={cambiarImagen}
+          etiqueta="Foto del premio"
+        />
+        <label className="text-sm">
+          <span className="mb-1 block text-neutral-500">
+            Fecha y hora del sorteo (opcional, para la cuenta regresiva)
+          </span>
+          <div className="flex gap-2">
+            <input
+              type="datetime-local"
+              value={aLocal(form.fecha_sorteo)}
+              onChange={(e) => setForm({ ...form, fecha_sorteo: aIso(e.target.value) })}
+              className="w-full rounded-lg border border-neutral-300 px-3 py-2"
+            />
+            {form.fecha_sorteo && (
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, fecha_sorteo: "" })}
+                className="shrink-0 rounded-lg border border-neutral-300 px-3 text-xs text-neutral-500 hover:bg-neutral-50"
+              >
+                Sin fecha
+              </button>
+            )}
+          </div>
         </label>
       </div>
 
@@ -287,6 +350,27 @@ function Ficha({
         </label>
       )}
 
+      {form.fuente === "inscritos" && (
+        <div className="rounded-lg border border-dashed border-neutral-300 p-4 text-sm text-neutral-600">
+          <p>
+            Cada persona escanea el QR de la pantalla del sorteo (o entra a{" "}
+            <a href={`/${slug}/sorteo/${sorteo.id}`} target="_blank" rel="noreferrer" className="font-mono underline">
+              /{slug}/sorteo/{sorteo.id}
+            </a>
+            ) y se inscribe con su nombre y correo. Un correo, una inscripción.
+            {form.fecha_sorteo ? " Las inscripciones cierran a la hora del sorteo." : " Sin fecha, se aceptan inscripciones hasta que se sortee."}
+          </p>
+          {sorteo.fuente === "inscritos" && sorteo.participantes > 0 && (
+            <a
+              href={`${url}/inscritos`}
+              className="mt-2 inline-block underline hover:text-neutral-900"
+            >
+              Descargar inscritos (CSV)
+            </a>
+          )}
+        </div>
+      )}
+
       {form.fuente === "base" && (
         <BaseImportada
           url={url}
@@ -299,7 +383,9 @@ function Ficha({
       <p className="text-sm text-neutral-500">
         {sinGuardar
           ? "Guarda para saber cuántos participan."
-          : `${miles(sorteo.participantes)} participantes en esta fuente.`}
+          : sorteo.fuente === "inscritos"
+            ? `${miles(sorteo.participantes)} ${sorteo.participantes === 1 ? "persona inscrita" : "personas inscritas"}.`
+            : `${miles(sorteo.participantes)} participantes en esta fuente.`}
       </p>
 
       <div className="flex flex-wrap gap-2">
@@ -318,6 +404,15 @@ function Ficha({
         >
           {ganadores.length > 0 ? "Sortear de nuevo" : "Ejecutar sorteo"}
         </button>
+        <a
+          href={urlPantallaEvento(evento, `/sorteo/${sorteo.id}`)}
+          target="_blank"
+          rel="noreferrer"
+          title="Abre el sorteo para proyectarlo: cuenta regresiva, QR, tómbola y ganador"
+          className="rounded-lg border border-neutral-300 px-4 py-2 text-sm hover:bg-neutral-50"
+        >
+          Ver pantalla ↗
+        </a>
         <button
           onClick={eliminar}
           className="rounded-lg border border-neutral-300 px-4 py-2 text-sm text-neutral-500 hover:bg-neutral-50"

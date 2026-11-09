@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { TipoPregunta } from "@/lib/db";
+import { EMOJIS_PREDETERMINADOS, MAXIMO_EMOJIS } from "@/lib/encuestas";
 
 type PreguntaFila = {
   id: number;
@@ -58,6 +59,7 @@ const TIPOS: { valor: TipoPregunta; label: string }[] = [
   { valor: "multiple", label: "Selección múltiple" },
   { valor: "escala", label: "Escala 1 a 5" },
   { valor: "si_no", label: "Sí / No" },
+  { valor: "emoji", label: "Emojis" },
 ];
 
 const CON_OPCIONES: TipoPregunta[] = ["unica", "multiple"];
@@ -212,7 +214,7 @@ export default function Encuestas({ slug }: { slug: string }) {
       <section>
         <h2 className="mb-1 font-medium">Encuestas</h2>
         <p className="mb-3 text-sm text-neutral-500">
-          Preguntas para conocer la opinión de los invitados. Cada uno responde una vez
+          Preguntas para conocer la opinión de los participantes. Cada uno responde una vez
           desde su teléfono y solo ve las encuestas abiertas.
         </p>
         <div className="flex flex-wrap gap-2">
@@ -339,7 +341,7 @@ export default function Encuestas({ slug }: { slug: string }) {
                         })
                       }
                     />
-                    Pedir el nombre del invitado
+                    Pedir el nombre del participante
                   </label>
                   <label className="flex items-center gap-2">
                     <input
@@ -349,7 +351,7 @@ export default function Encuestas({ slug }: { slug: string }) {
                         setBorrador({ ...borrador, abierta: ev.target.checked ? 1 : 0 })
                       }
                     />
-                    Abierta (visible para los invitados)
+                    Abierta (visible para los participantes)
                   </label>
                 </div>
 
@@ -374,9 +376,16 @@ export default function Encuestas({ slug }: { slug: string }) {
                         />
                         <select
                           value={p.tipo}
-                          onChange={(ev) =>
-                            cambiarPregunta(i, { tipo: ev.target.value as TipoPregunta })
-                          }
+                          onChange={(ev) => {
+                            const tipo = ev.target.value as TipoPregunta;
+                            // Al pasar a emojis parte con las caritas de siempre;
+                            // al salir, las alternativas de texto no heredan emojis.
+                            const opciones =
+                              tipo === "emoji"
+                                ? p.tipo === "emoji" ? p.opciones : EMOJIS_PREDETERMINADOS
+                                : p.tipo === "emoji" ? [] : p.opciones;
+                            cambiarPregunta(i, { tipo, opciones });
+                          }}
                           className="rounded-lg border border-neutral-300 bg-white px-2 py-1.5 text-sm"
                         >
                           {TIPOS.map((t) => (
@@ -456,6 +465,38 @@ export default function Encuestas({ slug }: { slug: string }) {
                         </div>
                       )}
 
+                      {p.tipo === "emoji" && (
+                        <div className="mt-2 pl-1">
+                          <p className="mb-1.5 text-xs text-neutral-500">
+                            Hasta {MAXIMO_EMOJIS} emojis. Toca uno para cambiarlo (pega el que quieras) o déjalo vacío para quitarlo.
+                          </p>
+                          <div className="flex flex-wrap items-center gap-2">
+                            {Array.from({ length: MAXIMO_EMOJIS }, (_, j) => (
+                              <input
+                                key={j}
+                                value={p.opciones[j] ?? ""}
+                                onChange={(ev) => {
+                                  const nuevas = Array.from({ length: MAXIMO_EMOJIS }, (_, k) => p.opciones[k] ?? "");
+                                  nuevas[j] = ev.target.value.trim();
+                                  cambiarPregunta(i, { opciones: nuevas });
+                                }}
+                                onFocus={(ev) => ev.target.select()}
+                                onBlur={() => cambiarPregunta(i, { opciones: p.opciones.filter(Boolean) })}
+                                aria-label={`Emoji ${j + 1}`}
+                                className="h-11 w-11 rounded-full border border-neutral-300 bg-white text-center text-xl"
+                              />
+                            ))}
+                            <button
+                              type="button"
+                              onClick={() => cambiarPregunta(i, { opciones: EMOJIS_PREDETERMINADOS })}
+                              className="text-sm text-neutral-500 underline hover:text-neutral-800"
+                            >
+                              Usar los de siempre
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
                       <label className="mt-2 flex items-center gap-2 text-sm text-neutral-600">
                         <input
                           type="checkbox"
@@ -526,7 +567,7 @@ function etiquetaDe(tipo: TipoPregunta, clave: string): string {
 }
 
 // Para las preguntas de alternativas se cuenta cada opción; el porcentaje se
-// mide contra los invitados que contestaron esa pregunta, no contra el total.
+// mide contra los participantes que contestaron esa pregunta, no contra el total.
 function conteoDe(pregunta: PreguntaFila, valores: string[]) {
   const claves =
     pregunta.tipo === "escala"
@@ -570,7 +611,7 @@ function Resultados({
           <div key={p.id}>
             <p className="text-sm font-medium">{p.texto}</p>
             <p className="mb-2 text-xs text-neutral-400">
-              {valores.length === 1 ? "1 invitado respondió" : `${valores.length} invitados respondieron`}
+              {valores.length === 1 ? "1 participante respondió" : `${valores.length} participantes respondieron`}
             </p>
 
             {abierta ? (

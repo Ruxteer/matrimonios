@@ -13,7 +13,9 @@ type Resultado = {
   companions: string[];
 };
 
-function Contenido({ slug }: { slug: string }) {
+function Contenido({ slug, titulo, boton, sector }: Textos) {
+  // En un matrimonio se busca la mesa; en una activación, el sector.
+  const palabra = sector ? "sector" : "mesa";
   const q = useSearchParams().get("q") ?? "";
   const [resultados, setResultados] = useState<Resultado[] | null>(q ? null : []);
   const [elegido, setElegido] = useState<Resultado | null>(null);
@@ -46,7 +48,7 @@ function Contenido({ slug }: { slug: string }) {
         <p className="mb-6 text-sm opacity-70">
           Revisa que tu nombre esté escrito igual que en la invitación.
         </p>
-        <BuscadorMesa slug={slug} boton="Buscar de nuevo" inicial={q} />
+        <BuscadorMesa slug={slug} titulo={titulo} boton={boton === "Buscar mi mesa" ? "Buscar de nuevo" : boton} inicial={q} />
       </div>
     );
   }
@@ -81,7 +83,7 @@ function Contenido({ slug }: { slug: string }) {
 
       {elegido.mesa ? (
         <>
-          <p className="mb-4 font-serif text-base font-bold">Tu mesa asignada es:</p>
+          <p className="mb-4 font-serif text-base font-bold">Tu {palabra} asignad{sector ? "o" : "a"} es:</p>
           <div className="mx-auto mb-8 w-full max-w-[256px] rounded-[20px] bg-gris-card px-6 pb-5 pt-6 shadow-sm">
             <IconCopas className="mx-auto mb-2 h-[39px] w-auto" />
             <p className="font-serif text-[72px] font-bold leading-none">{elegido.mesa}</p>
@@ -89,7 +91,7 @@ function Contenido({ slug }: { slug: string }) {
         </>
       ) : (
         <p className="mb-8 text-sm opacity-70">
-          Tu mesa aún no está asignada — pregunta en recepción.
+          Tu {palabra} aún no está asignad{sector ? "o" : "a"} — pregunta en recepción.
         </p>
       )}
 
@@ -116,10 +118,12 @@ function Contenido({ slug }: { slug: string }) {
   );
 }
 
-export default function ResultadoMesa({ slug }: { slug: string }) {
+type Textos = { slug: string; titulo?: string; boton?: string; sector?: boolean };
+
+export default function ResultadoMesa(props: Textos) {
   return (
     <Suspense fallback={<p className="text-center text-sm opacity-50">Buscando…</p>}>
-      <Contenido slug={slug} />
+      <Contenido {...props} />
     </Suspense>
   );
 }

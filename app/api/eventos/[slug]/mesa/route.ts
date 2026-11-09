@@ -24,7 +24,7 @@ export async function GET(
   if (!q) return NextResponse.json({ results: [] });
 
   const invitados = await consultar<Guest>(
-    "SELECT * FROM guests WHERE evento_id = ?",
+    "SELECT * FROM guests WHERE evento_id = ? AND eliminado_at = ''",
     [evento.id]
   );
 

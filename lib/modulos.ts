@@ -48,8 +48,8 @@ export const MODULOS: Modulo[] = [
   },
   {
     id: "mesa",
-    nombre: "Mesa",
-    descripcion: "Cada invitado busca su nombre y ve la mesa que le tocó.",
+    nombre: "Sector",
+    descripcion: "Cada participante busca su nombre y ve su sector (en un matrimonio, su mesa). Los sectores se asignan en Participantes.",
     ruta: "mesa",
     tarjeta: "Busca tu mesa",
     boton: "Buscar mi mesa",
@@ -58,7 +58,7 @@ export const MODULOS: Modulo[] = [
   {
     id: "mensajes",
     nombre: "Mensajes",
-    descripcion: "Los invitados dejan un saludo escrito para los novios.",
+    descripcion: "Los participantes dejan un saludo escrito que puede salir en la pantalla en vivo.",
     ruta: "mensaje",
     tarjeta: "Deja tus buenos deseos\npara los novios",
     boton: "Enviar mensaje",
@@ -66,7 +66,7 @@ export const MODULOS: Modulo[] = [
   {
     id: "fotos",
     nombre: "Fotos",
-    descripcion: "Galería colaborativa: cada invitado sube sus fotos.",
+    descripcion: "Galería colaborativa: cada participante sube sus fotos.",
     ruta: "foto",
     tarjeta: "Comparte tus mejores\nmomentos del evento",
     boton: "Subir foto",
@@ -74,7 +74,7 @@ export const MODULOS: Modulo[] = [
   {
     id: "mapa",
     nombre: "Mapa",
-    descripcion: "El plano del lugar. Necesita que subas una imagen en Ajustes.",
+    descripcion: "El plano del lugar, con zonas que el participante toca para ver qué hay en cada una. Se arma en la pestaña Mapa.",
     ruta: "mapa",
     tarjeta: "Explora el plano y\nencuentra todo fácilmente",
     boton: "Ver mapa",
@@ -91,7 +91,7 @@ export const MODULOS: Modulo[] = [
   {
     id: "encuestas",
     nombre: "Encuestas",
-    descripcion: "Preguntas para conocer la opinión o los datos de los invitados.",
+    descripcion: "Preguntas para conocer la opinión o los datos de los participantes.",
     ruta: "encuesta",
     tarjeta: "Cuéntanos lo que\npiensas en un minuto",
     boton: "Responder",
@@ -99,7 +99,7 @@ export const MODULOS: Modulo[] = [
   {
     id: "votaciones",
     nombre: "Votaciones",
-    descripcion: "Los invitados eligen entre alternativas y se ven los resultados.",
+    descripcion: "Los participantes eligen entre alternativas y se ven los resultados, también en la pantalla en vivo.",
     ruta: "votacion",
     tarjeta: "Vota y elige tu\nopción favorita",
     boton: "Votar",
@@ -107,7 +107,7 @@ export const MODULOS: Modulo[] = [
   {
     id: "sorteos",
     nombre: "Sorteos",
-    descripcion: "Elegir ganadores al azar entre los invitados o quienes participaron.",
+    descripcion: "Elegir ganadores al azar entre los participantes o quienes se inscriban escaneando el QR.",
     ruta: "sorteo",
     tarjeta: "Mira quién se gana\nlos premios de la noche",
     boton: "Ver sorteos",
@@ -115,7 +115,7 @@ export const MODULOS: Modulo[] = [
   {
     id: "trivia",
     nombre: "Trivia",
-    descripcion: "Juego de preguntas: ¿cuánto conoces a los novios?",
+    descripcion: "Juego de preguntas con alternativas de texto o con fotos.",
     ruta: "trivia",
     tarjeta: "¿Cuánto conoces\na los novios?",
     boton: "Jugar",
@@ -169,7 +169,7 @@ export function modulosDeEvento(evento: DatosDeModulos): { modulo: Modulo; activ
   return leer(evento).map((f) => ({ modulo: definicion(f.id), activo: f.activo }));
 }
 
-/** Solo los que se le muestran al invitado, en orden. */
+/** Solo los que se le muestran al participante, en orden. */
 export function modulosActivos(evento: DatosDeModulos): Modulo[] {
   return modulosDeEvento(evento)
     .filter(({ modulo, activo }) => activo && (!modulo.requiere || evento[modulo.requiere]))

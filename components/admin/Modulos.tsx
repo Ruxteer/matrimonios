@@ -3,6 +3,8 @@
 import { useState } from "react";
 import type { EventoPanel } from "@/lib/eventos";
 import { definicion, modulosDeEvento, type ModuloId } from "@/lib/modulos";
+import { leerTextos } from "@/lib/textos";
+import TextosModulo, { TextosDelInicio } from "./TextosModulo";
 
 type Fila = { id: ModuloId; activo: boolean };
 
@@ -17,6 +19,8 @@ export default function Modulos({
     modulosDeEvento(evento).map(({ modulo, activo }) => ({ id: modulo.id, activo }))
   );
   const [estado, setEstado] = useState("");
+  const [editando, setEditando] = useState<ModuloId | null>(null);
+  const propios = leerTextos(evento.textos).modulos;
 
   // Cada cambio se guarda solo: el organizador está mirando el sitio en otra
   // pestaña y quiere ver el efecto de inmediato.
@@ -52,10 +56,11 @@ export default function Modulos({
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="mb-1 font-medium">Qué ve el invitado</h2>
+        <h2 className="mb-1 font-medium">Qué ve el participante</h2>
         <p className="text-sm text-neutral-500">
           Enciende los módulos que quieras y ordénalos: así aparecen en el inicio del
-          sitio y en los atajos. {encendidos} de {filas.length} encendidos.
+          sitio y en los atajos. Con «Textos» cambias el título, la tarjeta y el botón de
+          cada uno, con vista previa antes de publicar. {encendidos} de {filas.length} encendidos.
         </p>
       </div>
 
@@ -64,10 +69,8 @@ export default function Modulos({
           const m = definicion(fila.id);
           const sinPlano = m.requiere === "mapa" && !evento.mapa;
           return (
-            <li
-              key={fila.id}
-              className={`flex items-center gap-4 p-4 ${fila.activo ? "" : "bg-neutral-50"}`}
-            >
+            <li key={fila.id}>
+            <div className={`flex items-center gap-4 p-4 ${fila.activo ? "" : "bg-neutral-50"}`}>
               <span className="w-6 text-center text-sm tabular-nums text-neutral-400">
                 {i + 1}
               </span>
@@ -77,7 +80,7 @@ export default function Modulos({
                   {m.nombre}
                   {fila.activo && sinPlano && (
                     <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-normal text-amber-800">
-                      falta subir el plano en Ajustes
+                      falta subir el plano en la pestaña Mapa
                     </span>
                   )}
                 </p>
@@ -112,12 +115,37 @@ export default function Modulos({
                 />
                 {fila.activo ? "Visible" : "Oculto"}
               </label>
+
+              <button
+                onClick={() => setEditando(editando === fila.id ? null : fila.id)}
+                aria-expanded={editando === fila.id}
+                title={propios[fila.id] ? "Este módulo tiene textos propios" : undefined}
+                className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1 text-sm ${
+                  editando === fila.id
+                    ? "border-neutral-900 bg-neutral-900 text-white"
+                    : "border-neutral-300 text-neutral-600 hover:bg-neutral-50"
+                }`}
+              >
+                Textos
+                {/* Mismo ancho editado o no, para que las filas no se descuadren. */}
+                <span
+                  aria-hidden
+                  className={`h-1.5 w-1.5 rounded-full ${propios[fila.id] ? "bg-amber-500" : "bg-transparent"}`}
+                />
+                {propios[fila.id] && <span className="sr-only">(editados)</span>}
+              </button>
+            </div>
+            {editando === fila.id && (
+              <TextosModulo key={fila.id} evento={evento} id={fila.id} onGuardado={onGuardado} />
+            )}
             </li>
           );
         })}
       </ul>
 
       {estado && <p className="text-sm text-neutral-500">{estado}</p>}
+
+      <TextosDelInicio evento={evento} onGuardado={onGuardado} />
     </div>
   );
 }

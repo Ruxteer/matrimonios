@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Evento } from "@/lib/db";
 import { modulosActivos, type ModuloId } from "@/lib/modulos";
+import { textosModulo } from "@/lib/textos";
 import { IconoModulo, IconPalomas } from "./Icons";
 
 export function BotonRosa({
@@ -67,7 +68,8 @@ export function TarjetaAccion({
   icon: React.ReactNode;
   texto: React.ReactNode;
   boton: string;
-  href: string;
+  /** Sin href es solo una muestra (la vista previa del panel). */
+  href?: string;
 }) {
   return (
     <Tarjeta>
@@ -93,23 +95,25 @@ export function Atajos({ evento, omitir }: { evento: Evento; omitir: ModuloId })
         {items.map((m) => (
           <Link key={m.id} href={`/${evento.slug}/${m.ruta}`}>
             <IconoModulo id={m.id} className="h-4 w-4" />
-            <span>{m.boton}</span><span aria-hidden="true">→</span>
+            <span>{textosModulo(evento, m.id).boton}</span><span aria-hidden="true">→</span>
           </Link>
         ))}
       </nav>
     );
   }
 
+  // Medidas del frame "foto" del Figma "creative-wiin": tarjetas de 137 px con
+  // botón alto, para que el dedo no tenga que apuntar.
   return (
-    <div className="mx-auto mt-10 grid w-full max-w-[280px] grid-cols-2 gap-4">
+    <div className="mx-auto mt-10 grid w-full max-w-[288px] grid-cols-2 gap-[14px]">
       {items.map((m) => (
         <div
           key={m.id}
-          className="flex flex-col items-center justify-end gap-4 rounded-[20px] bg-gris-card px-3 pb-4 pt-6 shadow-sm"
+          className="flex flex-col items-center justify-end gap-[14px] rounded-[22px] bg-gris-card px-3 pb-[21px] pt-[30px] shadow-sm"
         >
-          <IconoModulo id={m.id} className="h-9 w-auto" />
-          <BotonRosa href={`/${evento.slug}/${m.ruta}`} className="text-xs py-1.5">
-            {m.boton}
+          <IconoModulo id={m.id} className="h-[38px] w-auto" />
+          <BotonRosa href={`/${evento.slug}/${m.ruta}`} className="rounded-[10px]! py-[10px]!">
+            {textosModulo(evento, m.id).boton}
           </BotonRosa>
         </div>
       ))}

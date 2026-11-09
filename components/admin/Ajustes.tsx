@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { urlArchivo } from "@/lib/urls";
 import type { EventoPanel } from "@/lib/eventos";
 import Paleta from "./Paleta";
 import { etiquetaEvento } from "@/lib/identidad";
 import { DISENO_CAROZZI } from "@/lib/config";
+import type { Cliente } from "@/lib/db";
 
 const MODOS = [
   { valor: "todo", label: "Fotos y mensajes" },
@@ -40,6 +41,17 @@ export default function Ajustes({
   const [oscuro, setOscuro] = useState(false);
   const [claveNueva, setClaveNueva] = useState("");
   const [disenoPendiente, setDisenoPendiente] = useState(false);
+  // De qué cliente es el evento: solo lo ve y lo cambia la clave maestra.
+  const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [clienteSlug, setClienteSlug] = useState(evento.cliente?.slug ?? "venito");
+
+  useEffect(() => {
+    if (!evento.maestra) return;
+    fetch("/api/clientes")
+      .then((r) => (r.ok ? r.json() : []))
+      .then(setClientes)
+      .catch(() => setClientes([]));
+  }, [evento.maestra]);
 
   const origen = typeof window !== "undefined" ? window.location.origin : "";
   const urlPublica = `${origen}/${evento.slug}`;
@@ -72,7 +84,7 @@ export default function Ajustes({
     setEstado("Clave nueva: el enlace anterior ya no sirve.");
   }
 
-  async function guardar(cambios: Partial<EventoPanel>, mensaje = "Guardado") {
+  async function guardar(cambios: Record<string, unknown>, mensaje = "Guardado") {
     setEstado("Guardando…");
     const res = await fetch(`/api/eventos/${evento.slug}`, {
       method: "PATCH",
@@ -110,7 +122,7 @@ export default function Ajustes({
     setEstado(clave ? "Clave guardada. Anótala, no se puede volver a ver." : "Acceso quitado.");
   }
 
-  async function subir(file: File, destino: "banner" | "banner_movil" | "mapa") {
+  async function subir(file: File, destino: "banner" | "banner_movil") {
     setSubiendo(destino);
     const datos = new FormData();
     datos.append("file", file);
@@ -133,7 +145,7 @@ export default function Ajustes({
     )
       return;
     const res = await fetch(`/api/eventos/${evento.slug}`, { method: "DELETE" });
-    if (res.ok) router.push("/admin");
+    if (res.ok) router.push(evento.cliente ? `/admin/clientes/${evento.cliente.slug}` : "/admin");
   }
 
   return (
@@ -204,6 +216,22 @@ export default function Ajustes({
             </div>
           </label>
         )}
+        {evento.maestra && clientes.length > 0 && (
+          <label className="mt-3 block text-sm">
+            <span className="mb-1 block text-neutral-500">Cliente</span>
+            <select
+              value={clienteSlug}
+              onChange={(e) => setClienteSlug(e.target.value)}
+              className="w-full max-w-xs rounded-lg border border-neutral-300 px-3 py-2"
+            >
+              {clientes.map((c) => (
+                <option key={c.slug} value={c.slug}>
+                  {c.nombre}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <button
           onClick={() =>
             guardar({
@@ -219,6 +247,9 @@ export default function Ajustes({
                 color_texto: form.color_texto, color_dorado: form.color_dorado,
               } : {}),
               ...(evento.maestra ? { slug: form.slug } : {}),
+              ...(evento.maestra && clienteSlug !== (evento.cliente?.slug ?? "venito")
+                ? { cliente: clienteSlug }
+                : {}),
             })
           }
           className="mt-4 rounded-lg bg-neutral-900 px-4 py-2 text-sm text-white hover:bg-neutral-700"
@@ -326,47 +357,9 @@ export default function Ajustes({
       </section>
 
       <section>
-        <h2 className="mb-1 font-medium">Plano del lugar</h2>
-        <p className="mb-3 text-sm text-neutral-500">
-          Si no hay plano, la sección Mapa no se le muestra a los invitados.
-        </p>
-        {form.mapa && (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
-            src={urlArchivo(form.mapa)}
-            alt="Plano del lugar"
-            className="mb-3 w-56 rounded-lg border border-neutral-200"
-          />
-        )}
-        <div className="flex flex-wrap items-center gap-3">
-          <label className="cursor-pointer rounded-lg border border-neutral-300 px-4 py-2 text-sm hover:bg-neutral-50">
-            {subiendo === "mapa" ? "Subiendo…" : "Subir plano"}
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) subir(f, "mapa");
-                e.target.value = "";
-              }}
-            />
-          </label>
-          {form.mapa && (
-            <button
-              onClick={() => guardar({ mapa: "" }, "Plano quitado")}
-              className="text-sm text-neutral-500 underline hover:text-neutral-800"
-            >
-              Quitar plano
-            </button>
-          )}
-        </div>
-      </section>
-
-      <section>
         <h2 className="mb-1 font-medium">QR del evento</h2>
         <p className="mb-3 text-sm text-neutral-500">
-          Un solo QR para todos los invitados: lleva a {urlPublica}
+          Un solo QR para todos los participantes: lleva a {urlPublica}
         </p>
         <div className="flex flex-wrap items-center gap-6">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -514,7 +507,7 @@ export default function Ajustes({
         <section className="rounded-xl border border-rose-200 bg-rose-50 p-4">
           <h2 className="mb-1 font-medium text-rose-900">Eliminar evento</h2>
           <p className="mb-3 text-sm text-rose-800">
-            Borra el evento junto con sus participantes, invitados, mensajes y fotos.
+            Borra el evento junto con sus participantes, registros, mensajes y fotos.
           </p>
           <button
             onClick={eliminar}

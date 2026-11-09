@@ -45,9 +45,11 @@ type Props = {
   fotosUsadas: number;
   moderacion: boolean;
   activacion?: boolean;
+  /** Título propio del evento; sin él, la activación usa "Comparte / TU FOTO". */
+  titulo?: string;
 };
 
-export default function SubirFoto({ slug, participanteNombre, requiereRegistro, maxFotos, fotosUsadas, moderacion, activacion = false }: Props) {
+export default function SubirFoto({ slug, participanteNombre, requiereRegistro, maxFotos, fotosUsadas, moderacion, activacion = false, titulo }: Props) {
   const archivoRef = useRef<HTMLInputElement>(null);
   const camaraRef = useRef<HTMLInputElement>(null);
   const urlRef = useRef<string | null>(null);
@@ -117,8 +119,14 @@ export default function SubirFoto({ slug, participanteNombre, requiereRegistro, 
     <section className={card} aria-label="Compartir una foto" aria-busy={subiendo}>
       {activacion && (
         <header className="mb-4 text-center">
-          <h2 className="activation-heading text-[36px] font-black leading-[1.05] tracking-[-0.045em]">Comparte</h2>
-          <p className="activation-subtitle mb-2 mt-1 text-[16px] font-bold tracking-[0.3em] text-rosa">TU FOTO</p>
+          {titulo ? (
+            <h2 className="activation-heading mb-2 text-[30px] font-black leading-[1.05] tracking-[-0.04em] [text-wrap:balance]">{titulo}</h2>
+          ) : (
+            <>
+              <h2 className="activation-heading text-[36px] font-black leading-[1.05] tracking-[-0.045em]">Comparte</h2>
+              <p className="activation-subtitle mb-2 mt-1 text-[16px] font-bold tracking-[0.3em] text-rosa">TU FOTO</p>
+            </>
+          )}
           <p className="mx-auto max-w-[285px] text-[13px] leading-[1.45] text-foreground/65">Súbela desde tu celular o tómala en este momento y comparte tu experiencia.</p>
         </header>
       )}

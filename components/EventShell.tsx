@@ -2,9 +2,9 @@ import Image from "next/image";
 import { etiquetaEvento } from "@/lib/identidad";
 import type { Evento } from "@/lib/db";
 import { urlArchivo } from "@/lib/urls";
-import { COLORES, paletaEvento } from "@/lib/config";
+import { COLORES, paletaEvento, variablesPaleta } from "@/lib/config";
 import ActivationHeader from "./ActivationHeader";
-import { aclarar, colorValido, oscurecer, textoSobre } from "@/lib/colores";
+import { colorValido } from "@/lib/colores";
 
 const color = (v: string, porDefecto: string) => (colorValido(v) ? v : porDefecto);
 
@@ -14,21 +14,10 @@ const color = (v: string, porDefecto: string) => (colorValido(v) ? v : porDefect
 // organizador quede completa, y el color del texto de los botones se decide por
 // contraste: con una paleta clara el blanco no se lee.
 export function ColoresEvento({ evento }: { evento: Evento }) {
-  const paleta = paletaEvento(evento);
-  const boton = paleta.rosa;
-  const dorado = paleta.dorado;
-  const css = `:root{
-    --background:${paleta.fondo};
-    --foreground:${paleta.texto};
-    --rosa:${boton};
-    --rosa-hover:${oscurecer(boton, 0.12)};
-    --rosa-footer:${boton};
-    --rosa-suave:${aclarar(boton, 0.72)};
-    --rosa-texto:${textoSobre(boton)};
-    --gris-card:${paleta.card};
-    --dorado:${dorado};
-    --dorado-oscuro:${oscurecer(dorado, 0.18)};
-  }`;
+  const variables = variablesPaleta(paletaEvento(evento));
+  const css = `:root{${Object.entries(variables)
+    .map(([nombre, valor]) => `${nombre}:${valor};`)
+    .join("")}}`;
   return <style>{css}</style>;
 }
 
@@ -198,14 +187,20 @@ export function EventHeader({ evento }: { evento: Evento }) {
 
 export function EventFooter({ activacion = false }: { activacion?: boolean }) {
   if (activacion) return <footer className="activation-footer">Una experiencia con <strong>Venito</strong></footer>;
+  // Firma "Venito by Ruxteer" bajo la frase (Figma "creative-wiin", frame "foto").
   return (
-    <footer className="mt-auto bg-rosa-footer px-6 py-6">
+    <footer className="mt-auto bg-rosa-footer px-6 pb-[18px] pt-[27px]">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src="/design/footer-texto.svg"
         alt="Disfruta cada momento"
         className="mx-auto h-[22px] w-auto"
       />
+      <p className="mt-1.5 flex items-center justify-center gap-[3px] font-serif text-[10px] italic text-white">
+        Venito by
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/brand/ruxteer.svg" alt="Ruxteer" className="h-[4.7px] w-[33.5px]" />
+      </p>
     </footer>
   );
 }

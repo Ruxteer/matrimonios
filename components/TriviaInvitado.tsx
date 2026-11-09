@@ -3,11 +3,16 @@
 import { useState } from "react";
 import { BotonRosa, Tarjeta } from "./ui";
 import { sesionInvitado } from "@/lib/sesion";
+import { urlArchivo } from "@/lib/urls";
 
 export type PreguntaPublica = {
   id: number;
   enunciado: string;
   opciones: string[];
+  /** La foto de cada alternativa ("" = sin foto). */
+  imagenes: string[];
+  /** Si se pueden marcar varias o una sola. */
+  multiple: boolean;
 };
 
 // Lo que el servidor le entrega al navegador antes de jugar: sin correctas y
@@ -38,9 +43,11 @@ type Resultado = {
 export default function TriviaInvitado({
   slug,
   trivias,
+  activacion = false,
 }: {
   slug: string;
   trivias: TriviaPublica[];
+  activacion?: boolean;
 }) {
   const [elegida, setElegida] = useState<TriviaPublica | null>(
     trivias.length === 1 ? trivias[0] : null
@@ -70,9 +77,12 @@ export default function TriviaInvitado({
     setError("");
   }
 
-  function alternar(preguntaId: number, opcion: number) {
+  // Con selección única, tocar otra alternativa reemplaza la anterior.
+  function alternar(pregunta: PreguntaPublica, opcion: number) {
+    const preguntaId = pregunta.id;
     setMarcadas((previas) => {
       const actuales = previas[preguntaId] ?? [];
+      if (!pregunta.multiple) return { ...previas, [preguntaId]: [opcion] };
       return {
         ...previas,
         [preguntaId]: actuales.includes(opcion)
@@ -113,6 +123,7 @@ export default function TriviaInvitado({
         trivia={elegida}
         resultado={resultado}
         varias={trivias.length > 1}
+        activacion={activacion}
         onDeNuevo={volverAJugar}
         onOtra={otraTrivia}
       />
@@ -159,7 +170,7 @@ export default function TriviaInvitado({
         <p className="mb-3 pl-1 text-[12px] leading-snug opacity-70">
           Son {elegida.preguntas.length}{" "}
           {elegida.preguntas.length === 1 ? "pregunta" : "preguntas"}, una por pantalla.
-          Marca lo que creas correcto y al final vas a ver tu puntaje.
+          Elige lo que creas correcto y al final vas a ver tu puntaje.
         </p>
         <input
           value={nombre}
@@ -185,6 +196,8 @@ export default function TriviaInvitado({
   const pregunta = elegida.preguntas[indice];
   const elegidasAhora = marcadas[pregunta.id] ?? [];
   const ultima = indice === elegida.preguntas.length - 1;
+  // Con fotos, las alternativas van en una grilla de dos columnas.
+  const conFotos = pregunta.imagenes.some(Boolean);
 
   return (
     <Tarjeta>
@@ -202,14 +215,59 @@ export default function TriviaInvitado({
         {pregunta.enunciado}
       </p>
 
-      <div className="mb-2 space-y-2">
+      <div
+        key={pregunta.id}
+        role={pregunta.multiple ? "group" : "radiogroup"}
+        aria-label={pregunta.enunciado}
+        className={conFotos ? "mb-2 grid grid-cols-2 gap-2" : "mb-2 space-y-2"}
+      >
         {pregunta.opciones.map((opcion, i) => {
           const activa = elegidasAhora.includes(i);
+          const foto = pregunta.imagenes[i];
+          const comun = {
+            onClick: () => alternar(pregunta, i),
+            role: pregunta.multiple ? undefined : "radio",
+            "aria-checked": pregunta.multiple ? undefined : activa,
+            "aria-pressed": pregunta.multiple ? activa : undefined,
+          };
+          if (conFotos) {
+            return (
+              <button
+                key={i}
+                {...comun}
+                aria-label={opcion || `Alternativa ${i + 1}`}
+                className={`relative overflow-hidden rounded-[12px] bg-white text-left transition ${
+                  activa ? "ring-[3px] ring-rosa" : "hover:brightness-95"
+                }`}
+              >
+                {foto ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={urlArchivo(foto)} alt="" className="aspect-square w-full object-cover" />
+                ) : (
+                  <span className="grid aspect-square w-full place-items-center bg-gris-card px-2 text-center font-serif text-[13px] font-bold">
+                    {opcion}
+                  </span>
+                )}
+                {foto && opcion && (
+                  <span className={`block px-2 py-1.5 text-[12px] leading-snug ${activa ? "font-bold" : ""}`}>
+                    {opcion}
+                  </span>
+                )}
+                {activa && (
+                  <span
+                    aria-hidden
+                    className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-full bg-rosa text-[13px] font-bold text-rosa-texto shadow"
+                  >
+                    ✓
+                  </span>
+                )}
+              </button>
+            );
+          }
           return (
             <button
               key={i}
-              onClick={() => alternar(pregunta.id, i)}
-              aria-pressed={activa}
+              {...comun}
               className={`w-full rounded-[9px] px-3 py-3 text-left text-[13px] leading-snug transition hover:brightness-95 ${
                 activa ? "bg-rosa font-bold text-rosa-texto" : "bg-white"
               }`}
@@ -220,7 +278,9 @@ export default function TriviaInvitado({
         })}
       </div>
 
-      <p className="mb-3 pl-1 text-[11px] opacity-50">Puedes marcar más de una.</p>
+      <p className="mb-3 pl-1 text-[11px] opacity-50">
+        {pregunta.multiple ? "Puedes marcar más de una." : "Elige una."}
+      </p>
       {error && <p className="mb-3 text-sm text-rose-600">{error}</p>}
 
       <BotonRosa
@@ -245,12 +305,14 @@ function ResultadoTrivia({
   trivia,
   resultado,
   varias,
+  activacion,
   onDeNuevo,
   onOtra,
 }: {
   trivia: TriviaPublica;
   resultado: Resultado;
   varias: boolean;
+  activacion: boolean;
   onDeNuevo: () => void;
   onOtra: () => void;
 }) {
@@ -264,7 +326,9 @@ function ResultadoTrivia({
         </p>
         <p className="mt-1 text-sm opacity-70">
           {resultado.puntaje === resultado.total
-            ? "¡Perfecto! Conoces a los novios como nadie."
+            ? activacion
+              ? "¡Perfecto! Respondiste todo bien."
+              : "¡Perfecto! Conoces a los novios como nadie."
             : resultado.puntaje === 0
               ? "Hoy no era tu día: vuelve a intentarlo."
               : "¡Bien! Todavía queda algo por descubrir."}
@@ -289,6 +353,21 @@ function ResultadoTrivia({
                   {correctas.length === 1 ? "Respuesta: " : "Respuestas: "}
                   {correctas.map((i) => p.opciones[i]).filter(Boolean).join(" · ")}
                 </p>
+                {correctas.some((i) => p.imagenes[i]) && (
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {correctas
+                      .filter((i) => p.imagenes[i])
+                      .map((i) => (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          key={i}
+                          src={urlArchivo(p.imagenes[i])}
+                          alt={p.opciones[i] || `Alternativa ${i + 1}`}
+                          className="h-12 w-12 rounded-[8px] object-cover"
+                        />
+                      ))}
+                  </div>
+                )}
                 {detalle?.explicacion && (
                   <p className="mt-1 text-[11px] italic opacity-60">{detalle.explicacion}</p>
                 )}

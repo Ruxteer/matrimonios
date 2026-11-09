@@ -65,6 +65,20 @@ const ESQUEMA = [
      modulos TEXT NOT NULL DEFAULT '',
      pantalla_token TEXT NOT NULL DEFAULT '',
      clave TEXT NOT NULL DEFAULT '',
+     cliente_id INTEGER NOT NULL DEFAULT 0,
+     mapa_config TEXT NOT NULL DEFAULT '',
+     pantalla_config TEXT NOT NULL DEFAULT '',
+     textos TEXT NOT NULL DEFAULT '',
+     created_at TEXT DEFAULT (datetime('now'))
+   )`,
+  // Clientes: las agencias o marcas para las que se hacen eventos. Cada evento
+  // cuelga de uno; cliente_id = 0 son los de Venito, que no tiene fila.
+  `CREATE TABLE IF NOT EXISTS clientes (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     slug TEXT UNIQUE NOT NULL,
+     nombre TEXT NOT NULL,
+     color TEXT NOT NULL DEFAULT '#5326b4',
+     logo TEXT NOT NULL DEFAULT '',
      created_at TEXT DEFAULT (datetime('now'))
    )`,
   `CREATE TABLE IF NOT EXISTS guests (
@@ -80,6 +94,7 @@ const ESQUEMA = [
      asistentes INTEGER DEFAULT 0,
      nota TEXT DEFAULT '',
      token TEXT UNIQUE NOT NULL,
+     eliminado_at TEXT NOT NULL DEFAULT '',
      created_at TEXT DEFAULT (datetime('now')),
      updated_at TEXT DEFAULT (datetime('now'))
    )`,
@@ -130,6 +145,7 @@ const ESQUEMA = [
      lugar TEXT NOT NULL DEFAULT '',
      hora TEXT NOT NULL DEFAULT '',
      dia TEXT NOT NULL DEFAULT '',
+     imagen TEXT NOT NULL DEFAULT '',
      orden INTEGER NOT NULL DEFAULT 0,
      created_at TEXT DEFAULT (datetime('now'))
    )`,
@@ -178,6 +194,7 @@ const ESQUEMA = [
      descripcion TEXT NOT NULL DEFAULT '',
      multiple INTEGER NOT NULL DEFAULT 0,
      resultados TEXT NOT NULL DEFAULT 'siempre',
+     pide_datos INTEGER NOT NULL DEFAULT 0,
      abierta INTEGER NOT NULL DEFAULT 1,
      orden INTEGER NOT NULL DEFAULT 0,
      created_at TEXT DEFAULT (datetime('now'))
@@ -194,6 +211,8 @@ const ESQUEMA = [
      votacion_id INTEGER NOT NULL,
      opcion_id INTEGER NOT NULL,
      sesion TEXT NOT NULL DEFAULT '',
+     nombre TEXT NOT NULL DEFAULT '',
+     email TEXT NOT NULL DEFAULT '',
      created_at TEXT DEFAULT (datetime('now'))
    )`,
 
@@ -220,6 +239,8 @@ const ESQUEMA = [
      columna_nombre TEXT NOT NULL DEFAULT '',
      columna_apellido TEXT NOT NULL DEFAULT '',
      columna_clave TEXT NOT NULL DEFAULT '',
+     imagen TEXT NOT NULL DEFAULT '',
+     fecha_sorteo TEXT NOT NULL DEFAULT '',
      created_at TEXT DEFAULT (datetime('now'))
    )`,
   // Base de participantes importada desde Excel o CSV para un sorteo: cada fila
@@ -231,6 +252,17 @@ const ESQUEMA = [
    )`,
   `CREATE INDEX IF NOT EXISTS sorteo_participantes_sorteo
      ON sorteo_participantes (sorteo_id)`,
+  // Quienes se inscriben solos a un sorteo escaneando el QR de la pantalla.
+  // El correo los distingue: una persona, una inscripción por sorteo.
+  `CREATE TABLE IF NOT EXISTS sorteo_inscritos (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     sorteo_id INTEGER NOT NULL,
+     nombre TEXT NOT NULL,
+     email TEXT NOT NULL,
+     email_normalizado TEXT NOT NULL,
+     created_at TEXT DEFAULT (datetime('now')),
+     UNIQUE (sorteo_id, email_normalizado)
+   )`,
 
   // Trivia: preguntas con alternativas y el puntaje de cada partida jugada.
   `CREATE TABLE IF NOT EXISTS trivias (
@@ -249,6 +281,8 @@ const ESQUEMA = [
      opciones TEXT NOT NULL DEFAULT '',
      correctas TEXT NOT NULL DEFAULT '',
      explicacion TEXT NOT NULL DEFAULT '',
+     imagenes TEXT NOT NULL DEFAULT '',
+     multiple INTEGER NOT NULL DEFAULT 1,
      orden INTEGER NOT NULL DEFAULT 0
    )`,
   `CREATE TABLE IF NOT EXISTS trivia_partidas (
@@ -290,7 +324,17 @@ async function preparar(c: Client) {
       titulo: TEXTO,
       descripcion: TEXTO,
       registro_config: TEXTO,
+      cliente_id: NUMERO,
+      mapa_config: TEXTO,
+      pantalla_config: TEXTO,
+      textos: TEXTO,
     },
+    guests: { eliminado_at: TEXTO },
+    agenda: { imagen: TEXTO },
+    votaciones: { pide_datos: NUMERO },
+    votos: { nombre: TEXTO, email: TEXTO },
+    // Las preguntas de antes se jugaban siempre marcando varias: quedan así.
+    trivia_preguntas: { imagenes: TEXTO, multiple: "INTEGER NOT NULL DEFAULT 1" },
     photos: {
       participante_id: "INTEGER",
       estado: "TEXT NOT NULL DEFAULT 'aprobada'",
@@ -305,6 +349,8 @@ async function preparar(c: Client) {
       columna_nombre: TEXTO,
       columna_apellido: TEXTO,
       columna_clave: TEXTO,
+      imagen: TEXTO,
+      fecha_sorteo: TEXTO,
     },
   };
   for (const [tabla, campos] of Object.entries(faltantes)) {
@@ -369,6 +415,25 @@ export type Evento = {
   pantalla_token: string;
   /** Clave de los novios, guardada como "sal:hash". Vacía = solo entra la maestra. */
   clave: string;
+  /** Cliente al que pertenece. 0 = Venito. */
+  cliente_id: number;
+  /** JSON con las zonas y la leyenda del mapa interactivo (ver lib/mapa.ts). */
+  mapa_config: string;
+  /** JSON con cuántas fotos y mensajes muestra a la vez la pantalla (ver lib/pantalla-config.ts). */
+  pantalla_config: string;
+  /** JSON con los títulos, textos y botones propios de cada módulo (ver lib/textos.ts). */
+  textos: string;
+  created_at: string;
+};
+
+export type Cliente = {
+  id: number;
+  slug: string;
+  nombre: string;
+  /** Color de su tarjeta en el panel (hex de 6 dígitos). */
+  color: string;
+  /** Logo subido (nombre de archivo o ruta de /public). */
+  logo: string;
   created_at: string;
 };
 
@@ -389,6 +454,8 @@ export type Actividad = {
   lugar: string;
   hora: string;
   dia: string;
+  /** Foto opcional de la actividad. Vacía = la tarjeta se ve como siempre. */
+  imagen: string;
   orden: number;
   created_at: string;
 };
@@ -405,7 +472,7 @@ export type Encuesta = {
   created_at: string;
 };
 
-export type TipoPregunta = "corta" | "parrafo" | "unica" | "multiple" | "escala" | "si_no";
+export type TipoPregunta = "corta" | "parrafo" | "unica" | "multiple" | "escala" | "si_no" | "emoji";
 
 export type PreguntaEncuesta = {
   id: number;
@@ -425,6 +492,8 @@ export type Votacion = {
   descripcion: string;
   multiple: number;
   resultados: "siempre" | "al_cerrar" | "nunca";
+  /** 1 = pide nombre y correo antes de votar; 0 = votación libre. */
+  pide_datos: number;
   abierta: number;
   orden: number;
   created_at: string;
@@ -443,7 +512,7 @@ export type Sorteo = {
   evento_id: number;
   titulo: string;
   premio: string;
-  fuente: "invitados" | "mensajes" | "fotos" | "lista" | "base";
+  fuente: "invitados" | "mensajes" | "fotos" | "lista" | "base" | "inscritos";
   lista: string;
   cantidad: number;
   excluir_anteriores: number;
@@ -470,6 +539,10 @@ export type Sorteo = {
   columna_apellido: string;
   /** Columna que distingue a cada persona (RUT, correo…). Vacía = el nombre. */
   columna_clave: string;
+  /** Foto del premio, la imagen principal de la pantalla del sorteo. */
+  imagen: string;
+  /** Cuándo se sortea (ISO, UTC). Vacía = sin cuenta regresiva. */
+  fecha_sorteo: string;
   created_at: string;
 };
 
@@ -492,6 +565,10 @@ export type PreguntaTrivia = {
   /** JSON con los índices correctos. */
   correctas: string;
   explicacion: string;
+  /** JSON con la foto de cada alternativa, en el mismo orden ("" = sin foto). */
+  imagenes: string;
+  /** 1 = se pueden marcar varias; 0 = una sola. */
+  multiple: number;
   orden: number;
 };
 
@@ -508,6 +585,8 @@ export type Guest = {
   asistentes: number;
   nota: string;
   token: string;
+  /** Cuándo se eliminó. Vacío = sigue en la lista. */
+  eliminado_at: string;
   created_at: string;
   updated_at: string;
 };

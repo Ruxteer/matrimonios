@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { Actividad } from "@/lib/db";
+import CampoImagen from "./CampoImagen";
 
 export default function Agenda({ slug }: { slug: string }) {
   const [actividades, setActividades] = useState<Actividad[]>([]);
@@ -113,7 +114,7 @@ export default function Agenda({ slug }: { slug: string }) {
 
       {actividades.length === 0 && (
         <p className="text-neutral-400">
-          Todavía no hay actividades: los invitados ven la agenda vacía.
+          Todavía no hay actividades: los participantes ven la agenda vacía.
         </p>
       )}
 
@@ -174,13 +175,20 @@ export default function Agenda({ slug }: { slug: string }) {
             />
           </div>
 
-          <div className="mt-3">
+          <div className="mt-3 flex flex-wrap items-start gap-4">
             <Campo
               etiqueta="Descripción"
               valor={actividad.descripcion}
-              placeholder="Lo que el invitado necesita saber de este momento."
+              placeholder="Lo que el participante necesita saber de este momento."
               textarea
+              className="min-w-64 flex-1"
               onGuardar={(descripcion) => guardar(actividad.id, { descripcion })}
+            />
+            <CampoImagen
+              valor={actividad.imagen}
+              etiqueta="Foto de la actividad"
+              className="pt-5"
+              onCambio={(imagen) => guardar(actividad.id, { imagen })}
             />
           </div>
         </div>

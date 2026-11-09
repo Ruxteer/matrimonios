@@ -255,6 +255,29 @@ function Pregunta({
         </div>
       );
 
+    case "emoji":
+      return (
+        <div className="flex justify-between gap-1.5" role="radiogroup" aria-label={pregunta.texto}>
+          {pregunta.opciones.map((emoji) => (
+            <button
+              key={emoji}
+              type="button"
+              role="radio"
+              aria-checked={valor === emoji}
+              aria-label={emoji}
+              onClick={() => poner(pregunta.id, emoji)}
+              className={`flex aspect-square min-w-0 max-w-11 flex-1 items-center justify-center rounded-full text-[22px] leading-none transition ${
+                valor === emoji
+                  ? "scale-110 bg-rosa shadow-md ring-2 ring-rosa"
+                  : valor ? "bg-white opacity-60" : "bg-white"
+              }`}
+            >
+              {emoji}
+            </button>
+          ))}
+        </div>
+      );
+
     case "escala":
       return (
         <div className="flex justify-between gap-1.5">

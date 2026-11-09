@@ -1,4 +1,5 @@
 import type { Evento } from "./db";
+import { aclarar, oscurecer, textoSobre } from "./colores";
 
 // La paleta clásica se conserva en los matrimonios existentes y nuevos.
 export const COLORES = {
@@ -41,6 +42,26 @@ export function paletaEvento(evento: EventoConColores): Paleta {
   })) as Paleta;
 }
 
+/**
+ * Las variables CSS del sitio del evento (bg-rosa, bg-gris-card…). Los tonos
+ * derivados se calculan para que cualquier paleta quede completa, y el texto de
+ * los botones se elige por contraste. Las usan el sitio y las vistas previas.
+ */
+export function variablesPaleta(paleta: Paleta): Record<string, string> {
+  return {
+    "--background": paleta.fondo,
+    "--foreground": paleta.texto,
+    "--rosa": paleta.rosa,
+    "--rosa-hover": oscurecer(paleta.rosa, 0.12),
+    "--rosa-footer": paleta.rosa,
+    "--rosa-suave": aclarar(paleta.rosa, 0.72),
+    "--rosa-texto": textoSobre(paleta.rosa),
+    "--gris-card": paleta.card,
+    "--dorado": paleta.dorado,
+    "--dorado-oscuro": oscurecer(paleta.dorado, 0.18),
+  };
+}
+
 export const DISENO_CAROZZI = {
   titulo: "Corrida Carozzi",
   fecha: "Octubre 2026",
@@ -59,6 +80,8 @@ export const PALETAS_ACTIVACION: { nombre: string; colores: Paleta }[] = [
   { nombre: "Azul deportivo", colores: COLORES_ACTIVACION },
   { nombre: "Blanco y azul", colores: { fondo: "#ffffff", rosa: "#1e70bb", card: "#edf6fd", texto: "#001740", dorado: "#b9e7fb" } },
   { nombre: "Grafito", colores: { fondo: "#f4f6f8", rosa: "#243c5a", card: "#ffffff", texto: "#172334", dorado: "#dce5ee" } },
+  // Festival con mapa interactivo (Figma "creative-wiin"): blanco y rojo.
+  { nombre: "Rojo festival", colores: { fondo: "#ffffff", rosa: "#e3121b", card: "#f4f4f5", texto: "#1d1d1f", dorado: "#fbd5d7" } },
 ];
 
 // Paletas listas para elegir de una en el panel. La primera es la del producto.
@@ -102,6 +125,17 @@ export const PALETAS: { nombre: string; colores: Paleta }[] = [
       card: "#eae4f2",
       texto: "#4f4560",
       dorado: "#bda45f",
+    },
+  },
+  // La del frame "foto" del Figma "creative-wiin".
+  {
+    nombre: "Dorado",
+    colores: {
+      fondo: "#efe1d2",
+      rosa: "#c49c64",
+      card: "#d8d8cd",
+      texto: "#58595b",
+      dorado: "#b08d57",
     },
   },
   {

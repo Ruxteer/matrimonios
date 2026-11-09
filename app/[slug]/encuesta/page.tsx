@@ -4,6 +4,7 @@ import { Atajos, Titulo, Vacio } from "@/components/ui";
 import { consultar } from "@/lib/db";
 import type { Encuesta, PreguntaEncuesta } from "@/lib/db";
 import { getEvento } from "@/lib/eventos";
+import { textosModulo } from "@/lib/textos";
 import { moduloActivo } from "@/lib/modulos";
 
 function opcionesDe(json: string): string[] {
@@ -61,7 +62,7 @@ export default async function EncuestaPage({
 
   return (
     <>
-      <Titulo>Queremos conocer tu opinión</Titulo>
+      <Titulo>{textosModulo(evento, "encuestas").titulo}</Titulo>
 
       {encuestas.length === 0 ? (
         <Vacio>Todavía no hay ninguna encuesta.</Vacio>

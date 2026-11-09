@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { urlArchivo } from "@/lib/urls";
 import type { OpcionVotacion, Votacion } from "@/lib/db";
+import type { EventoPanel } from "@/lib/eventos";
+import { urlPantallaEvento } from "./AjustesPantalla";
 
 type OpcionAdmin = OpcionVotacion & { votos: number };
 type VotacionAdmin = Votacion & { opciones: OpcionAdmin[]; total: number };
@@ -14,7 +16,8 @@ function opcionEnBlanco(votacionId: number): OpcionAdmin {
   return { id: --secuencia, votacion_id: votacionId, texto: "", imagen: "", orden: 0, votos: 0 };
 }
 
-export default function Votaciones({ slug }: { slug: string }) {
+export default function Votaciones({ evento }: { evento: EventoPanel }) {
+  const slug = evento.slug;
   const [votaciones, setVotaciones] = useState<VotacionAdmin[]>([]);
   const [nueva, setNueva] = useState("");
   const [cargando, setCargando] = useState(true);
@@ -93,6 +96,7 @@ export default function Votaciones({ slug }: { slug: string }) {
         titulo: v.titulo,
         descripcion: v.descripcion,
         multiple: v.multiple,
+        pide_datos: v.pide_datos,
         resultados: v.resultados,
         abierta: v.abierta,
         opciones: v.opciones.map((o) => ({ id: o.id, texto: o.texto, imagen: o.imagen })),
@@ -135,7 +139,7 @@ export default function Votaciones({ slug }: { slug: string }) {
       return;
     }
     editar(v.id, { total: 0, opciones: v.opciones.map((o) => ({ ...o, votos: 0 })) });
-    setEstado("Votos reiniciados: los invitados pueden votar de nuevo.");
+    setEstado("Votos reiniciados: los participantes pueden votar de nuevo.");
   }
 
   async function subirImagen(v: VotacionAdmin, opcion: OpcionAdmin, file: File) {
@@ -174,8 +178,10 @@ export default function Votaciones({ slug }: { slug: string }) {
       <section>
         <h2 className="mb-1 font-medium">Votaciones</h2>
         <p className="mb-3 text-sm text-neutral-500">
-          Los invitados eligen entre las alternativas que escribas aquí. Cada teléfono vota
-          una vez por votación, y solo se le muestran las votaciones abiertas.
+          Los participantes eligen entre las alternativas que escribas aquí. Cada teléfono
+          (o cada correo, si pides registro) vota una vez por votación, y solo se muestran
+          las votaciones abiertas. Con «Ver pantalla» proyectas los resultados en vivo, con
+          un QR para votar.
         </p>
         <form onSubmit={crear} className="flex flex-wrap items-center gap-2">
           <input
@@ -222,6 +228,15 @@ export default function Votaciones({ slug }: { slug: string }) {
             >
               {v.abierta ? "Abierta" : "Cerrada"}
             </button>
+            <a
+              href={urlPantallaEvento(evento, `/votacion/${v.id}`)}
+              target="_blank"
+              rel="noreferrer"
+              title="Abre la votación en vivo para proyectarla, con el QR para votar"
+              className="rounded-lg border border-neutral-300 px-3 py-2 text-sm hover:bg-neutral-50"
+            >
+              Ver pantalla ↗
+            </a>
           </div>
 
           <input
@@ -252,9 +267,27 @@ export default function Votaciones({ slug }: { slug: string }) {
                 }
                 className="rounded-lg border border-neutral-300 px-3 py-2"
               >
-                <option value="siempre">En vivo: cada invitado los ve al votar</option>
+                <option value="siempre">En vivo: cada participante los ve al votar</option>
                 <option value="al_cerrar">Al cerrar: mientras vota nadie los ve</option>
-                <option value="nunca">Nunca: solo se ven aquí</option>
+                <option value="nunca">Nunca: solo se ven aquí y en la pantalla</option>
+              </select>
+            </label>
+            <label className="flex items-center gap-2">
+              <span className="text-neutral-500">Participación:</span>
+              <select
+                value={v.pide_datos ? "registro" : "libre"}
+                onChange={(e) =>
+                  guardar(
+                    { ...v, pide_datos: e.target.value === "registro" ? 1 : 0 },
+                    e.target.value === "registro"
+                      ? "Listo: se pide nombre y correo antes de votar."
+                      : "Listo: se vota sin registro."
+                  )
+                }
+                className="rounded-lg border border-neutral-300 px-3 py-2"
+              >
+                <option value="libre">Libre: se vota directo</option>
+                <option value="registro">Con registro: nombre y correo antes de votar</option>
               </select>
             </label>
           </div>
@@ -322,6 +355,25 @@ export default function Votaciones({ slug }: { slug: string }) {
                         }}
                       />
                     </label>
+                    {o.imagen && (
+                      <button
+                        onClick={() =>
+                          guardar(
+                            {
+                              ...v,
+                              opciones: v.opciones.map((x) =>
+                                x.id === o.id ? { ...x, imagen: "" } : x
+                              ),
+                            },
+                            "Imagen quitada"
+                          )
+                        }
+                        title="Quitar la imagen"
+                        className="rounded-lg border border-neutral-300 px-2 py-2 text-xs text-neutral-500 hover:text-rose-600"
+                      >
+                        Sin foto
+                      </button>
+                    )}
 
                     <button
                       onClick={() =>
@@ -355,7 +407,8 @@ export default function Votaciones({ slug }: { slug: string }) {
               </div>
               <p className="mt-2 text-xs text-neutral-400">
                 Al guardar, las alternativas sin nombre no se crean y las que borres se van
-                con los votos que tenían.
+                con los votos que tenían. Las fotos se muestran todas del mismo tamaño,
+                recortadas al centro.
               </p>
             </div>
 
@@ -393,6 +446,14 @@ export default function Votaciones({ slug }: { slug: string }) {
                   })}
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
+                {v.pide_datos === 1 && (
+                  <a
+                    href={`/api/eventos/${slug}/votaciones/${v.id}/votantes`}
+                    className="rounded-lg border border-neutral-300 px-3 py-1.5 text-sm hover:bg-neutral-50"
+                  >
+                    Descargar votantes (CSV)
+                  </a>
+                )}
                 <button
                   onClick={() => reiniciar(v)}
                   className="rounded-lg border border-neutral-300 px-3 py-1.5 text-sm text-neutral-500 hover:bg-neutral-50"

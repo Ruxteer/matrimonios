@@ -7,40 +7,54 @@ import { moduloActivo } from "@/lib/modulos";
 import { paletaEvento } from "@/lib/config";
 import type { Evento } from "@/lib/db";
 import type { DatosPantalla, FotoPantalla, MensajePantalla } from "@/lib/pantalla";
+import EnVivo from "./EnVivo";
 
 export type EventoPantalla = Omit<Evento, "id" | "pantalla_token" | "clave">;
 export type ModoPantalla = "todo" | "fotos" | "mensajes";
 
 // Ritmo del carrusel. Una foto aguanta más que un mensaje porque la gente la
 // mira; una recién subida se queda un buen rato para que su dueño alcance a
-// verla desde donde esté bailando.
-const DURACION = { foto: 9000, mensaje: 8000, destacada: 15000 };
+// verla desde donde esté bailando. Con varias a la vez, cada escena dura más.
+const DURACION = { foto: 9000, mensaje: 8000, destacada: 15000, extraFoto: 2500, extraMensaje: 4000 };
 const CADA = 8000; // cada cuánto se pregunta si llegó algo nuevo
 
-
 type Escena =
-  | { tipo: "foto"; clave: string; foto: FotoPantalla }
-  | { tipo: "mensaje"; clave: string; mensaje: MensajePantalla };
+  | { tipo: "foto"; clave: string; fotos: FotoPantalla[] }
+  | { tipo: "mensaje"; clave: string; mensajes: MensajePantalla[] };
 
-// Se alterna foto y mensaje, ambos de lo más nuevo a lo más viejo: la vuelta
-// siempre empieza por lo último que subieron los invitados.
+function enGrupos<T>(lista: T[], tamano: number): T[][] {
+  const grupos: T[][] = [];
+  for (let i = 0; i < lista.length; i += tamano) grupos.push(lista.slice(i, i + tamano));
+  return grupos;
+}
+
+// Se alternan fotos y mensajes, de lo más nuevo a lo más viejo: la vuelta
+// siempre empieza por lo último que subieron los participantes. Cada escena
+// lleva tantas fotos o mensajes como se eligió en el panel (de 1 a 4).
 function construirGuion(datos: DatosPantalla, modo: ModoPantalla): Escena[] {
-  const fotos = modo === "mensajes" ? [] : datos.fotos;
-  const mensajes = modo === "fotos" ? [] : datos.mensajes;
+  const fotos = enGrupos(modo === "mensajes" ? [] : datos.fotos, datos.config.fotos);
+  const mensajes = enGrupos(modo === "fotos" ? [] : datos.mensajes, datos.config.mensajes);
   const guion: Escena[] = [];
   for (let i = 0; i < Math.max(fotos.length, mensajes.length); i++) {
-    if (fotos[i]) guion.push({ tipo: "foto", clave: `f${fotos[i].id}`, foto: fotos[i] });
+    if (fotos[i]) guion.push({ tipo: "foto", clave: `f${fotos[i].map((f) => f.id).join("-")}`, fotos: fotos[i] });
     if (mensajes[i]) {
-      guion.push({ tipo: "mensaje", clave: `m${mensajes[i].id}`, mensaje: mensajes[i] });
+      guion.push({ tipo: "mensaje", clave: `m${mensajes[i].map((m) => m.id).join("-")}`, mensajes: mensajes[i] });
     }
   }
   return guion;
 }
 
 // Para no reiniciar el carrusel en cada sondeo: solo interesa si cambió la
-// lista, no que el servidor haya respondido otro objeto igual.
+// lista (o cuántos van a la vez), no que el servidor haya respondido otro
+// objeto igual.
 function firma(d: DatosPantalla): string {
-  return `${d.fotos.map((f) => f.id).join(",")}|${d.mensajes.map((m) => m.id).join(",")}`;
+  return `${d.fotos.map((f) => f.id).join(",")}|${d.mensajes.map((m) => m.id).join(",")}|${d.config.fotos}${d.config.mensajes}`;
+}
+
+function duracionDe(escena: Escena): number {
+  return escena.tipo === "foto"
+    ? DURACION.foto + (escena.fotos.length - 1) * DURACION.extraFoto
+    : DURACION.mensaje + (escena.mensajes.length - 1) * DURACION.extraMensaje;
 }
 
 const cuenta = (n: number, palabra: string) => `${n} ${palabra}${n === 1 ? "" : "s"}`;
@@ -121,7 +135,7 @@ export default function PantallaSalon({
   const escena = destacada || guion.length === 0 ? null : guion[paso % guion.length];
   const siguiente = guion.length ? guion[(paso + 1) % guion.length] : null;
   const claveEscena = destacada ? `nueva-${destacada.id}` : (escena?.clave ?? "");
-  const duracion = destacada ? DURACION.destacada : escena ? DURACION[escena.tipo] : 0;
+  const duracion = destacada ? DURACION.destacada : escena ? duracionDe(escena) : 0;
 
   useEffect(() => {
     if (!claveEscena || !duracion) return;
@@ -167,33 +181,43 @@ export default function PantallaSalon({
 
       {/* Antes de que suba nadie nada, la pantalla entera es la invitación. */}
       {!destacada && !escena ? (
-        activacion ? <BienvenidaActivacion evento={evento} /> : <Bienvenida evento={evento} modo={modo} />
+        <>
+          {activacion ? <BienvenidaActivacion evento={evento} /> : <Bienvenida evento={evento} modo={modo} />}
+          <EnVivo className="absolute right-[3vh] top-[3vh] z-10" />
+        </>
       ) : (
         <div className="relative grid h-full grid-cols-[1fr_25vw]">
           <section className="relative overflow-hidden p-[3vh]">
             {destacada ? (
               <EscenaFoto key={`nueva-${destacada.id}`} foto={destacada} nueva />
             ) : escena?.tipo === "foto" ? (
-              <EscenaFoto key={escena.clave} foto={escena.foto} />
+              escena.fotos.length === 1 ? (
+                <EscenaFoto key={escena.clave} foto={escena.fotos[0]} />
+              ) : (
+                <EscenaFotos key={escena.clave} fotos={escena.fotos} />
+              )
             ) : escena?.tipo === "mensaje" ? (
-              <EscenaMensaje key={escena.clave} mensaje={escena.mensaje} />
+              <EscenaMensajes key={escena.clave} mensajes={escena.mensajes} />
             ) : null}
+            <EnVivo className="absolute right-[3vh] top-[3vh] z-10" />
           </section>
 
           <Panel evento={evento} datos={datos} />
         </div>
       )}
 
-      {/* La siguiente foto se descarga mientras se mira la actual. */}
-      {siguiente?.tipo === "foto" && (
-        /* eslint-disable-next-line @next/next/no-img-element */
-        <img
-          src={siguiente.foto.url}
-          alt=""
-          aria-hidden
-          className="pointer-events-none absolute h-px w-px opacity-0"
-        />
-      )}
+      {/* Las fotos siguientes se descargan mientras se miran las actuales. */}
+      {siguiente?.tipo === "foto" &&
+        siguiente.fotos.map((f) => (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            key={f.id}
+            src={f.url}
+            alt=""
+            aria-hidden
+            className="pointer-events-none absolute h-px w-px opacity-0"
+          />
+        ))}
 
       <div
         className={`absolute bottom-[2vh] left-[2vh] flex gap-2 text-[1.5vh] transition-opacity ${
@@ -254,31 +278,71 @@ function EscenaFoto({ foto, nueva }: { foto: FotoPantalla; nueva?: boolean }) {
   );
 }
 
-function EscenaMensaje({ mensaje }: { mensaje: MensajePantalla }) {
-  const largo = mensaje.mensaje.length;
-  const tamano = largo > 200 ? "4vh" : largo > 110 ? "5.2vh" : "6.4vh";
+// Varias fotos a la vez: cada una entera en su cuadro, sobre su propio fondo
+// desenfocado, igual que cuando va sola.
+function EscenaFotos({ fotos }: { fotos: FotoPantalla[] }) {
+  const columnas = fotos.length === 3 ? "grid-cols-3" : "grid-cols-2";
+  const filas = fotos.length === 4 ? "grid-rows-2" : "grid-rows-1";
   return (
-    <blockquote className="pantalla-aparecer flex h-full flex-col items-center justify-center px-[6vh] text-center">
-      <span
-        aria-hidden
-        className="font-serif leading-none text-[var(--p-dorado)] opacity-60"
-        style={{ fontSize: "14vh" }}
-      >
-        &ldquo;
-      </span>
-      <p
-        className="pantalla-subir -mt-[4vh] max-w-[46ch] font-serif leading-snug text-balance"
-        style={{ fontSize: tamano }}
-      >
-        {mensaje.mensaje}
-      </p>
-      <footer
-        className="pantalla-subir mt-[4vh] font-script text-[var(--p-dorado)]"
-        style={{ fontSize: "7vh", animationDelay: ".25s" }}
-      >
-        {mensaje.nombre}
-      </footer>
-    </blockquote>
+    <div className={`pantalla-aparecer grid h-full w-full gap-[2vh] ${columnas} ${filas}`}>
+      {fotos.map((foto, i) => (
+        <figure
+          key={foto.id}
+          className="pantalla-subir relative flex min-h-0 items-center justify-center overflow-hidden rounded-[2vh] bg-black/10"
+          style={{ animationDelay: `${i * 0.15}s` }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={foto.url}
+            alt=""
+            aria-hidden
+            className="absolute inset-0 h-full w-full object-cover opacity-30 blur-2xl saturate-150"
+          />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={foto.url}
+            alt="Foto compartida por un participante"
+            className="relative max-h-full max-w-full object-contain shadow-xl"
+          />
+        </figure>
+      ))}
+    </div>
+  );
+}
+
+// Los mensajes van siempre en blanco con letra negra, sea cual sea la paleta
+// del evento: así se leen igual de lejos con cualquier combinación de colores.
+function EscenaMensajes({ mensajes }: { mensajes: MensajePantalla[] }) {
+  const n = mensajes.length;
+  const columnas = n === 1 ? "grid-cols-1" : n === 3 ? "grid-cols-3" : "grid-cols-2";
+  // La letra baja con la cantidad de mensajes y con el largo del más largo.
+  const largo = Math.max(...mensajes.map((m) => m.mensaje.length));
+  const base = n === 1 ? 6.4 : n === 2 ? 4.2 : n === 3 ? 3.4 : 3.2;
+  const tamano = `${(base * (largo > 200 ? 0.62 : largo > 110 ? 0.8 : 1)).toFixed(2)}vh`;
+  return (
+    <div
+      className={`grid h-full w-full content-center gap-[2.5vh] ${columnas} ${n === 4 ? "grid-rows-2" : ""} ${
+        n === 1 ? "px-[5vh] py-[8vh]" : "px-[1vh] py-[7vh]"
+      }`}
+    >
+      {mensajes.map((mensaje, i) => (
+        <blockquote
+          key={mensaje.id}
+          className="pantalla-subir flex min-h-0 flex-col items-center justify-center overflow-hidden rounded-[3vh] bg-white px-[4vh] py-[4vh] text-center text-black shadow-2xl"
+          style={{ animationDelay: `${i * 0.2}s` }}
+        >
+          <span aria-hidden className="font-serif leading-none text-black/25" style={{ fontSize: n === 1 ? "12vh" : "8vh", height: n === 1 ? "6vh" : "4vh" }}>
+            &ldquo;
+          </span>
+          <p className="max-w-[46ch] font-serif leading-snug text-balance break-words" style={{ fontSize: tamano }}>
+            {mensaje.mensaje}
+          </p>
+          <footer className="mt-[2.5vh] font-bold text-black/60" style={{ fontSize: n === 1 ? "3.4vh" : "2.4vh" }}>
+            {mensaje.nombre}
+          </footer>
+        </blockquote>
+      ))}
+    </div>
   );
 }
 
@@ -388,7 +452,9 @@ function Panel({ evento, datos }: { evento: EventoPantalla; datos: DatosPantalla
           Escanea y súmate
         </p>
         <p className="mt-[.6vh] leading-snug opacity-70" style={{ fontSize: "1.8vh" }}>
-          {evento.tipo === "activacion"
+          {moduloActivo(evento, "fotos") && moduloActivo(evento, "mensajes")
+            ? "Comparte tu foto o mensaje del evento"
+            : evento.tipo === "activacion"
             ? moduloActivo(evento, "registro")
               ? moduloActivo(evento, "fotos") ? "Regístrate y comparte tu foto" : "Regístrate y participa"
               : moduloActivo(evento, "fotos") ? "Comparte tu foto del evento" : "Participa desde tu celular"

@@ -6,23 +6,28 @@ import { coloresPorTipo } from "./config";
 import { borrarArchivo } from "./archivos";
 import { normalizarModulos } from "./modulos";
 import { normalizarRegistroConfig } from "./registro";
+import { imagenesDeMapa, normalizarMapa } from "./mapa";
+import { normalizarPantallaConfig } from "./pantalla-config";
+import { normalizarTextos } from "./textos";
+import { imagenesDeTrivia } from "./trivia";
+import { slugify } from "./slug";
 
 // Los colores se inyectan como CSS: solo se aceptan hex de 6 dígitos.
 export { colorValido } from "./colores";
 import { colorValido } from "./colores";
 
-export function slugify(texto: string): string {
-  return texto
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60);
-}
+export { slugify };
 
 export function listarEventos(): Promise<Evento[]> {
   return consultar<Evento>("SELECT * FROM eventos ORDER BY created_at DESC");
+}
+
+/** Los eventos de un cliente; el 0 es Venito (los que no son de una agencia). */
+export function eventosDeCliente(clienteId: number): Promise<Evento[]> {
+  return consultar<Evento>(
+    "SELECT * FROM eventos WHERE cliente_id = ? ORDER BY created_at DESC",
+    [clienteId]
+  );
 }
 
 export function getEvento(slug: string): Promise<Evento | null> {
@@ -51,6 +56,8 @@ export async function crearEvento(datos: {
   descripcion?: string;
   fecha?: string;
   slug?: string;
+  /** Cliente dueño del evento; 0 o sin dato = Venito. */
+  clienteId?: number;
 }): Promise<Evento> {
   const tipo = datos.tipo === "activacion" ? "activacion" : "matrimonio";
   const colores = coloresPorTipo(tipo);
@@ -65,8 +72,8 @@ export async function crearEvento(datos: {
   const res = await ejecutar(
     `INSERT INTO eventos (slug, nombre1, nombre2, fecha, color_fondo, color_rosa,
                           color_card, color_texto, color_dorado, pantalla_token,
-                          tipo, titulo, descripcion, modulos)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                          tipo, titulo, descripcion, modulos, cliente_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       slug,
       nombre1,
@@ -82,6 +89,7 @@ export async function crearEvento(datos: {
       titulo,
       (datos.descripcion ?? "").trim().slice(0, 3000),
       modulos,
+      datos.clienteId && datos.clienteId > 0 ? datos.clienteId : 0,
     ]
   );
   return (await uno<Evento>("SELECT * FROM eventos WHERE id = ?", [
@@ -153,6 +161,24 @@ export async function actualizarEvento(
     sets.push("slug = ?");
     valores.push(await slugDisponible(slugify(String(body.slug)), evento.id));
   }
+  if ("mapa_config" in body) {
+    sets.push("mapa_config = ?");
+    valores.push(normalizarMapa(body.mapa_config));
+  }
+  if ("pantalla_config" in body) {
+    sets.push("pantalla_config = ?");
+    valores.push(normalizarPantallaConfig(body.pantalla_config, evento.pantalla_config));
+  }
+  if ("textos" in body) {
+    sets.push("textos = ?");
+    const tipo = body.tipo === "matrimonio" || body.tipo === "activacion" ? body.tipo : evento.tipo;
+    valores.push(normalizarTextos(body.textos, tipo));
+  }
+  // La ruta ya comprobó que lo pide la clave maestra y que el cliente existe.
+  if (Number.isInteger(body.cliente_id) && (body.cliente_id as number) >= 0) {
+    sets.push("cliente_id = ?");
+    valores.push(body.cliente_id as number);
+  }
   if (sets.length) {
     await ejecutar(`UPDATE eventos SET ${sets.join(", ")} WHERE id = ?`, [
       ...valores,
@@ -165,9 +191,16 @@ export async function actualizarEvento(
 
   // Una imagen reemplazada queda huérfana en el almacenamiento. Solo se borra
   // si ya no la usa ningún otro campo del matrimonio.
-  const enUso = new Set(CAMPOS_IMAGEN.map((campo) => actualizado[campo]));
-  for (const campo of CAMPOS_IMAGEN) {
-    const anterior = evento[campo];
+  // Las fotos de las zonas del mapa cuentan igual.
+  const enUso = new Set([
+    ...CAMPOS_IMAGEN.map((campo) => actualizado[campo]),
+    ...imagenesDeMapa(actualizado.mapa_config),
+  ]);
+  const anteriores = new Set([
+    ...CAMPOS_IMAGEN.map((campo) => evento[campo]),
+    ...imagenesDeMapa(evento.mapa_config),
+  ]);
+  for (const anterior of anteriores) {
     if (anterior && !enUso.has(anterior)) await borrarArchivo(anterior);
   }
   return actualizado;
@@ -183,6 +216,7 @@ const HIJAS: [hija: string, campo: string, padre: string][] = [
   ["trivia_preguntas", "trivia_id", "trivias"],
   ["trivia_partidas", "trivia_id", "trivias"],
   ["sorteo_participantes", "sorteo_id", "sorteos"],
+  ["sorteo_inscritos", "sorteo_id", "sorteos"],
 ];
 
 const POR_EVENTO = [
@@ -202,9 +236,18 @@ export async function eliminarEvento(evento: Evento) {
     "SELECT archivo FROM photos WHERE evento_id = ?",
     [evento.id]
   );
+  // Todas las imágenes que cuelgan del evento: alternativas de votación,
+  // actividades de la agenda, premios de sorteos y alternativas de trivia.
   const imagenes = await consultar<{ imagen: string }>(
     `SELECT imagen FROM votacion_opciones
-      WHERE imagen <> '' AND votacion_id IN (SELECT id FROM votaciones WHERE evento_id = ?)`,
+      WHERE imagen <> '' AND votacion_id IN (SELECT id FROM votaciones WHERE evento_id = ?1)
+     UNION ALL SELECT imagen FROM agenda WHERE evento_id = ?1 AND imagen <> ''
+     UNION ALL SELECT imagen FROM sorteos WHERE evento_id = ?1 AND imagen <> ''`,
+    [evento.id]
+  );
+  const deTrivia = await consultar<{ imagenes: string }>(
+    `SELECT imagenes FROM trivia_preguntas
+      WHERE imagenes <> '' AND trivia_id IN (SELECT id FROM trivias WHERE evento_id = ?)`,
     [evento.id]
   );
 
@@ -229,9 +272,11 @@ export async function eliminarEvento(evento: Evento) {
   for (const archivo of [
     ...fotos.map((f) => f.archivo),
     ...imagenes.map((i) => i.imagen),
+    ...deTrivia.flatMap((p) => imagenesDeTrivia(p.imagenes)),
     evento.banner,
     evento.banner_movil,
     evento.mapa,
+    ...imagenesDeMapa(evento.mapa_config),
   ]) {
     await borrarArchivo(archivo);
   }
@@ -282,6 +327,8 @@ export async function eventoDeSesion(req: NextRequest): Promise<Evento | null> {
 export type EventoPanel = Omit<Evento, "clave"> & {
   tiene_clave: boolean;
   maestra?: boolean;
+  /** Solo para la clave maestra: a qué cliente volver desde el panel. */
+  cliente?: { slug: string; nombre: string };
 };
 
 // Lo que ve el panel: necesita el id y la clave de la pantalla, pero de la
@@ -317,8 +364,8 @@ export async function resumenEvento(id: number) {
     participantes: number;
   }>(
     `SELECT
-       (SELECT COUNT(*) FROM guests   WHERE evento_id = ?1) AS invitados,
-       (SELECT COUNT(DISTINCT mesa) FROM guests WHERE evento_id = ?1 AND mesa <> '') AS mesas,
+       (SELECT COUNT(*) FROM guests   WHERE evento_id = ?1 AND eliminado_at = '') AS invitados,
+       (SELECT COUNT(DISTINCT mesa) FROM guests WHERE evento_id = ?1 AND mesa <> '' AND eliminado_at = '') AS mesas,
        (SELECT COUNT(*) FROM messages WHERE evento_id = ?1) AS mensajes,
        (SELECT COUNT(*) FROM photos   WHERE evento_id = ?1) AS fotos,
        (SELECT COUNT(*) FROM participantes WHERE evento_id = ?1) AS participantes`,

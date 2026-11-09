@@ -3,6 +3,7 @@ import FormularioMensaje from "@/components/FormularioMensaje";
 import { Atajos, NotaPalomas } from "@/components/ui";
 import { getEvento } from "@/lib/eventos";
 import { moduloActivo } from "@/lib/modulos";
+import { textosModulo } from "@/lib/textos";
 
 export default async function MensajePage({
   params,
@@ -16,7 +17,7 @@ export default async function MensajePage({
   return (
     <>
       <h2 className="mb-5 text-center font-serif text-lg font-bold">
-        Déjanos tus buenos deseos
+        {textosModulo(evento, "mensajes").titulo}
       </h2>
 
       <FormularioMensaje slug={evento.slug} />

@@ -13,7 +13,11 @@ export async function GET(
   const evento = await getEvento(slug);
   if (!evento) return NextResponse.json({ error: "no existe" }, { status: 404 });
 
-  const url = new URL(`/${evento.slug}`, req.nextUrl.origin).toString();
+  // ?ruta=votacion o ?ruta=sorteo/12 apunta a esa sección: es el QR de las
+  // pantallas de votación y de sorteo. Cualquier otra cosa, a la portada.
+  const ruta = req.nextUrl.searchParams.get("ruta") ?? "";
+  const destino = /^(votacion|sorteo)(\/\d{1,9})?$/.test(ruta) ? `/${evento.slug}/${ruta}` : `/${evento.slug}`;
+  const url = new URL(destino, req.nextUrl.origin).toString();
   const opciones = { margin: 1, color: { dark: evento.tipo === "activacion" ? "#001740" : "#58595b", light: "#ffffff" } };
   const descarga = req.nextUrl.searchParams.get("descargar") === "1";
   const nombre = `qr-${evento.slug}`;

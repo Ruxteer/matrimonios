@@ -52,6 +52,15 @@ export async function POST(req: NextRequest, { params }: Ctx) {
 
   const body = await req.json().catch(() => null);
   const sesion = String(body?.sesion ?? "").trim().slice(0, 100);
+  // Votación con registro: nombre y correo antes de votar, y un voto por correo.
+  const nombre = votacion.pide_datos ? String(body?.nombre ?? "").trim().slice(0, 120) : "";
+  const email = votacion.pide_datos ? String(body?.email ?? "").trim().toLowerCase().slice(0, 200) : "";
+  if (votacion.pide_datos) {
+    if (!nombre) return NextResponse.json({ error: "Escribe tu nombre para votar." }, { status: 400 });
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return NextResponse.json({ error: "Escribe un correo válido para votar." }, { status: 400 });
+    }
+  }
   const pedidas: unknown[] = Array.isArray(body?.opciones) ? body.opciones : [];
   const elegidas = [...new Set(pedidas.map(Number).filter(Number.isInteger))];
 
@@ -81,11 +90,20 @@ export async function POST(req: NextRequest, { params }: Ctx) {
       return NextResponse.json({ error: "ya votaste en esta votación" }, { status: 409 });
     }
   }
+  if (email) {
+    const ya = await uno<{ id: number }>(
+      "SELECT id FROM votos WHERE votacion_id = ? AND email = ? LIMIT 1",
+      [votacion.id, email]
+    );
+    if (ya) {
+      return NextResponse.json({ error: "Ese correo ya votó en esta votación." }, { status: 409 });
+    }
+  }
 
   for (const opcion of elegidas) {
     await ejecutar(
-      "INSERT INTO votos (votacion_id, opcion_id, sesion) VALUES (?, ?, ?)",
-      [votacion.id, opcion, sesion]
+      "INSERT INTO votos (votacion_id, opcion_id, sesion, nombre, email) VALUES (?, ?, ?, ?, ?)",
+      [votacion.id, opcion, sesion, nombre, email]
     );
   }
   return NextResponse.json(await conResultados(votacion, elegidas), { status: 201 });

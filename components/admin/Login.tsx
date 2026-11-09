@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { PRODUCTO } from "@/lib/config";
+import { Bienvenida, MarcoVenito } from "./Marca";
 
+// La entrada al panel lleva la misma portada de la marca que la lista de
+// clientes: es lo primero que se ve al abrir venito.cl.
 export default function Login({ onOk, slug }: { onOk: () => void; slug?: string }) {
   const [pass, setPass] = useState("");
   const [verla, setVerla] = useState(false);
@@ -28,59 +30,43 @@ export default function Login({ onOk, slug }: { onOk: () => void; slug?: string 
   }
 
   return (
-    <main className="grid min-h-dvh bg-white text-neutral-900 md:grid-cols-2">
-      {/* La presentación sobra en un celular: solo aparece en pantallas anchas. */}
-      <div className="hidden flex-col justify-between bg-neutral-950 p-12 text-white md:flex">
-        <p className="text-xs uppercase tracking-[0.35em] text-white/50">{PRODUCTO.nombre}</p>
-        <div>
-          <p className="font-script text-6xl leading-[1.05]">
-            Cada evento,
-            <br />
-            su propia web
-          </p>
-          <p className="mt-6 max-w-xs text-sm leading-relaxed text-white/50">
-            Registros, invitados, fotos, el QR y la pantalla en vivo, en un solo
-            lugar.
-          </p>
-        </div>
-        <p className="text-xs text-white/40">Panel de administración</p>
-      </div>
+    <MarcoVenito>
+      <main className="mx-auto w-full max-w-[986px] px-6 pt-16 md:pt-[180px]">
+        <Bienvenida />
 
-      <div className="flex items-center justify-center px-6 py-16">
-        <form onSubmit={entrar} className="w-full max-w-sm">
-          <h1 className="font-serif text-3xl">Entrar al panel</h1>
-          <p className="mt-2 text-sm text-neutral-500">
+        <form onSubmit={entrar} className="mt-12 w-full max-w-[440px] md:mt-[72px]">
+          <label htmlFor="clave-panel" className="block text-[18px] font-bold md:text-[22px]">
+            Entrar al panel
+          </label>
+          <p className="mt-1 text-[15px] text-neutral-500">
             {slug
               ? "La clave de este evento, o la de administración."
               : "La contraseña de administración."}
           </p>
 
-          <label className="mt-10 block">
-            <span className="text-xs uppercase tracking-[0.2em] text-neutral-500">
-              Contraseña
-            </span>
-            <div className="mt-2 flex items-center border-b border-neutral-300 focus-within:border-neutral-900">
-              <input
-                type={verla ? "text" : "password"}
-                value={pass}
-                onChange={(e) => setPass(e.target.value)}
-                autoFocus
-                autoComplete="current-password"
-                placeholder="••••••••"
-                className="w-full bg-transparent py-2 outline-none placeholder:text-neutral-300"
-              />
-              <button
-                type="button"
-                onClick={() => setVerla((v) => !v)}
-                className="shrink-0 px-2 text-xs uppercase tracking-widest text-neutral-400 hover:text-neutral-900"
-              >
-                {verla ? "Ocultar" : "Ver"}
-              </button>
-            </div>
-          </label>
+          <div className="mt-4 flex items-center rounded-full border-[3px] border-venito pl-5 pr-2 focus-within:border-black">
+            <input
+              id="clave-panel"
+              type={verla ? "text" : "password"}
+              value={pass}
+              onChange={(e) => setPass(e.target.value)}
+              autoFocus
+              autoComplete="current-password"
+              placeholder="••••••••"
+              className="w-full bg-transparent py-3 text-[18px] outline-none placeholder:text-neutral-300"
+            />
+            <button
+              type="button"
+              onClick={() => setVerla((v) => !v)}
+              aria-pressed={verla}
+              className="shrink-0 rounded-full px-3 py-1.5 text-sm text-venito-gris hover:text-black"
+            >
+              {verla ? "Ocultar" : "Ver"}
+            </button>
+          </div>
 
           {error && (
-            <p role="alert" className="mt-4 border-l-2 border-neutral-900 pl-3 text-sm">
+            <p role="alert" className="mt-3 text-sm text-rose-600">
               {error}
             </p>
           )}
@@ -88,12 +74,12 @@ export default function Login({ onOk, slug }: { onOk: () => void; slug?: string 
           <button
             type="submit"
             disabled={enviando || pass.length === 0}
-            className="mt-8 w-full bg-neutral-900 py-3 text-sm uppercase tracking-[0.2em] text-white transition hover:bg-neutral-700 disabled:opacity-30"
+            className="mt-5 rounded-full bg-venito px-8 py-3 text-[18px] font-bold transition hover:brightness-95 disabled:opacity-40"
           >
             {enviando ? "Entrando…" : "Entrar"}
           </button>
         </form>
-      </div>
-    </main>
+      </main>
+    </MarcoVenito>
   );
 }

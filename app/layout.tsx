@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Roboto, Gelasio, Allura } from "next/font/google";
+import { Roboto, Gelasio, Allura, Rethink_Sans } from "next/font/google";
 import "./globals.css";
 import { PRODUCTO } from "@/lib/config";
 
@@ -24,6 +24,13 @@ const allura = Allura({
   weight: "400",
 });
 
+// Tipografía de la marca Venito: portada y panel (Figma "quick-wins").
+const rethink = Rethink_Sans({
+  variable: "--font-rethink",
+  subsets: ["latin"],
+  weight: ["400", "700"],
+});
+
 export const metadata: Metadata = {
   title: PRODUCTO.nombre,
   description: PRODUCTO.descripcion,
@@ -37,7 +44,7 @@ export default function RootLayout({
   return (
     <html
       lang="es"
-      className={`${roboto.variable} ${gelasio.variable} ${allura.variable} h-full antialiased`}
+      className={`${roboto.variable} ${gelasio.variable} ${allura.variable} ${rethink.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>

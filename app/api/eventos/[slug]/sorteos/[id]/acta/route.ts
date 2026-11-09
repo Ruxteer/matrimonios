@@ -10,10 +10,11 @@ export const dynamic = "force-dynamic";
 type Ctx = { params: Promise<{ slug: string; id: string }> };
 
 const FUENTE: Record<string, string> = {
-  invitados: "Todos los invitados",
+  invitados: "Todos los participantes de la lista",
   mensajes: "Quienes dejaron un mensaje",
   lista: "Lista escrita en el panel",
   base: "Base importada",
+  inscritos: "Inscritos con el QR de la pantalla",
 };
 
 // ejecutado_at viene de SQLite en UTC; el acta va en hora de Chile.

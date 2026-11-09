@@ -14,8 +14,10 @@ import Sorteos from "@/components/admin/Sorteos";
 import Trivia from "@/components/admin/Trivia";
 import Fotos from "@/components/admin/Fotos";
 import Registro from "@/components/admin/Registro";
+import Mapa from "@/components/admin/Mapa";
+import Mensajes from "@/components/admin/Mensajes";
 import { etiquetaEvento } from "@/lib/identidad";
-import { modulosActivos, type ModuloId } from "@/lib/modulos";
+import { modulosDeEvento, type ModuloId } from "@/lib/modulos";
 import type { Guest } from "@/lib/db";
 import type { EventoPanel } from "@/lib/eventos";
 
@@ -32,7 +34,11 @@ export default function AdminEvento() {
   const [existe, setExiste] = useState(true);
   const [errorCarga, setErrorCarga] = useState("");
   function actualizarVista(actualizado: EventoPanel) {
-    setEvento((anterior) => ({ ...actualizado, maestra: actualizado.maestra ?? anterior?.maestra }));
+    setEvento((anterior) => ({
+      ...actualizado,
+      maestra: actualizado.maestra ?? anterior?.maestra,
+      cliente: actualizado.cliente ?? anterior?.cliente,
+    }));
   }
 
   const load = useCallback(() => {
@@ -72,7 +78,7 @@ export default function AdminEvento() {
       <main className="mx-auto max-w-3xl p-6">
         <p className="mb-4">Ese evento no existe.</p>
         <Link href="/admin" className="underline">
-          Ver todos los eventos
+          Ver todos los clientes
         </Link>
       </main>
     );
@@ -81,18 +87,17 @@ export default function AdminEvento() {
 
   // Las pestañas siguen a los módulos encendidos y su orden: lo que el
   // matrimonio no usa no aparece en el panel. Mesa se administra desde
-  // Invitados y Mapa desde Ajustes, así que no tienen pestaña propia.
-  const activos = modulosActivos(evento);
-  const mostrarInvitados = evento.tipo !== "activacion" || activos.some((m) => m.id === "mesa");
-  const conPanel = activos.filter(
-    (m) => m.id !== "mesa" && m.id !== "mapa"
-  );
+  // Invitados, así que no tiene pestaña propia. Mapa aparece apenas se
+  // enciende, aunque falte el plano: es justo ahí donde se sube.
+  const encendidos = modulosDeEvento(evento).filter((f) => f.activo).map((f) => f.modulo);
+  const mostrarInvitados = evento.tipo !== "activacion" || encendidos.some((m) => m.id === "mesa");
+  const conPanel = encendidos.filter((m) => m.id !== "mesa");
   const etiquetas: Partial<Record<ModuloId, string>> = {
     mensajes: `Mensajes (${mensajes.length})`,
-    registro: "Participantes y registro",
+    registro: "Registro",
   };
   const pestañas: [Tab, string][] = [
-    ...(mostrarInvitados ? [["invitados", `${evento.tipo === "activacion" ? "Mesas" : "Invitados"} (${guests.length})`] as [Tab, string]] : []),
+    ...(mostrarInvitados ? [["invitados", `Participantes (${guests.length})`] as [Tab, string]] : []),
     ...conPanel.map((m): [Tab, string] => [m.id, etiquetas[m.id] ?? m.nombre]),
     ["modulos", "Módulos"],
     ["ajustes", "Ajustes"],
@@ -105,8 +110,11 @@ export default function AdminEvento() {
     <main className="mx-auto max-w-6xl p-6">
       {/* Los novios solo tienen su matrimonio: la lista completa no es para ellos. */}
       {evento.maestra ? (
-        <Link href="/admin" className="text-sm text-neutral-400 hover:text-neutral-700">
-          ← Todos los eventos
+        <Link
+          href={evento.cliente ? `/admin/clientes/${evento.cliente.slug}` : "/admin"}
+          className="text-sm text-neutral-400 hover:text-neutral-700"
+        >
+          ← {evento.cliente ? `Eventos de ${evento.cliente.nombre}` : "Todos los clientes"}
         </Link>
       ) : (
         <button
@@ -161,28 +169,16 @@ export default function AdminEvento() {
         />
       )}
 
-      {actual === "mensajes" && (
-        <div className="space-y-3">
-          {mensajes.length === 0 && <p className="text-neutral-400">Aún no llegan mensajes.</p>}
-          {mensajes.map((m) => (
-            <div key={m.id} className="rounded-xl border border-neutral-200 p-4">
-              <div className="mb-1 flex items-baseline justify-between">
-                <p className="font-medium">{m.nombre}</p>
-                <p className="text-xs text-neutral-400">{m.created_at}</p>
-              </div>
-              <p className="whitespace-pre-wrap text-sm text-neutral-700">{m.mensaje}</p>
-            </div>
-          ))}
-        </div>
-      )}
+      {actual === "mensajes" && <Mensajes evento={evento} mensajes={mensajes} onGuardado={actualizarVista} />}
 
-      {actual === "fotos" && <Fotos slug={evento.slug} />}
+      {actual === "fotos" && <Fotos evento={evento} onGuardado={actualizarVista} />}
+      {actual === "mapa" && <Mapa evento={evento} onGuardado={actualizarVista} />}
       {actual === "registro" && <Registro evento={evento} onGuardado={actualizarVista} />}
 
       {actual === "agenda" && <Agenda slug={evento.slug} />}
       {actual === "encuestas" && <Encuestas slug={evento.slug} />}
-      {actual === "votaciones" && <Votaciones slug={evento.slug} />}
-      {actual === "sorteos" && <Sorteos slug={evento.slug} />}
+      {actual === "votaciones" && <Votaciones evento={evento} />}
+      {actual === "sorteos" && <Sorteos evento={evento} />}
       {actual === "trivia" && <Trivia slug={evento.slug} />}
 
       {actual === "modulos" && <Modulos evento={evento} onGuardado={actualizarVista} />}

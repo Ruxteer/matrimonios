@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { ejecutar, uno, type Actividad } from "@/lib/db";
 import { noAutorizado, puedeAdministrar } from "@/lib/auth";
 import { getEvento } from "@/lib/eventos";
+import { borrarArchivo } from "@/lib/archivos";
+import { archivoSubido } from "@/lib/urls";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +51,12 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
     sets.push("orden = ?");
     valores.push(Math.trunc(Number(body.orden)) || 0);
   }
+  // La foto es opcional: un archivo subido o "" para quitarla.
+  const imagen = body && "imagen" in body ? archivoSubido(body.imagen) : null;
+  if (imagen !== null) {
+    sets.push("imagen = ?");
+    valores.push(imagen);
+  }
   if (!sets.length) {
     return NextResponse.json({ error: "nada que actualizar" }, { status: 400 });
   }
@@ -58,6 +66,9 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
     actividad.id,
     evento.id,
   ]);
+  if (imagen !== null && actividad.imagen && actividad.imagen !== imagen) {
+    await borrarArchivo(actividad.imagen);
+  }
   const actualizada = await uno<Actividad>("SELECT * FROM agenda WHERE id = ?", [
     actividad.id,
   ]);
@@ -69,12 +80,14 @@ export async function DELETE(req: NextRequest, { params }: Ctx) {
   const evento = await getEvento(slug);
   if (!evento) return NextResponse.json({ error: "no existe" }, { status: 404 });
   if (!puedeAdministrar(req, evento)) return noAutorizado();
-  const resultado = await ejecutar("DELETE FROM agenda WHERE id = ? AND evento_id = ?", [
-    Number(id),
-    evento.id,
-  ]);
-  if (resultado.rowsAffected === 0) {
+  const actividad = await uno<Actividad>(
+    "SELECT * FROM agenda WHERE id = ? AND evento_id = ?",
+    [Number(id), evento.id]
+  );
+  if (!actividad) {
     return NextResponse.json({ error: "actividad no encontrada" }, { status: 404 });
   }
+  await ejecutar("DELETE FROM agenda WHERE id = ? AND evento_id = ?", [actividad.id, evento.id]);
+  await borrarArchivo(actividad.imagen);
   return NextResponse.json({ ok: true });
 }

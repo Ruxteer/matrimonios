@@ -2,30 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { consultar, ejecutar, uno, type PreguntaTrivia, type Trivia } from "@/lib/db";
 import { noAutorizado, puedeAdministrar } from "@/lib/auth";
 import { getEvento } from "@/lib/eventos";
+import { preguntaPanel, preguntaPublica } from "@/lib/trivia";
 
 export const dynamic = "force-dynamic";
 
 type Ctx = { params: Promise<{ slug: string }> };
 
 type Partida = { trivia_id: number; participante: string; puntaje: number; total: number };
-
-function alternativas(json: string): string[] {
-  try {
-    const valor = JSON.parse(json || "[]");
-    return Array.isArray(valor) ? valor.map((v) => String(v)) : [];
-  } catch {
-    return [];
-  }
-}
-
-function correctas(json: string): number[] {
-  try {
-    const valor = JSON.parse(json || "[]");
-    return Array.isArray(valor) ? valor.map(Number).filter(Number.isInteger) : [];
-  } catch {
-    return [];
-  }
-}
 
 // El invitado juega las trivias abiertas; el panel las ve todas con cómo les
 // fue. La regla del juego: lo que va al navegador antes de responder no lleva
@@ -57,11 +40,7 @@ export async function GET(req: NextRequest, { params }: Ctx) {
         id: t.id,
         titulo: t.titulo,
         descripcion: t.descripcion,
-        preguntas: suyas(t).map((p) => ({
-          id: p.id,
-          enunciado: p.enunciado,
-          opciones: alternativas(p.opciones),
-        })),
+        preguntas: suyas(t).map(preguntaPublica),
       }))
     );
   }
@@ -77,13 +56,7 @@ export async function GET(req: NextRequest, { params }: Ctx) {
       const jugadas = partidas.filter((p) => p.trivia_id === t.id);
       return {
         ...t,
-        preguntas: suyas(t).map((p) => ({
-          id: p.id,
-          enunciado: p.enunciado,
-          opciones: alternativas(p.opciones),
-          correctas: correctas(p.correctas),
-          explicacion: p.explicacion,
-        })),
+        preguntas: suyas(t).map(preguntaPanel),
         partidas: jugadas.length,
         promedio: jugadas.length
           ? Math.round((jugadas.reduce((s, p) => s + p.puntaje, 0) / jugadas.length) * 10) / 10

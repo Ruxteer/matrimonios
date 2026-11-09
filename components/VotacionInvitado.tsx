@@ -28,6 +28,10 @@ export default function VotacionInvitado({
   const [seleccion, setSeleccion] = useState<Record<number, number[]>>({});
   const [enviando, setEnviando] = useState(0);
   const [errores, setErrores] = useState<Record<number, string>>({});
+  // Las votaciones con registro piden nombre y correo; se escriben una vez y
+  // sirven para todas las de la página.
+  const [nombre, setNombre] = useState("");
+  const [email, setEmail] = useState("");
 
   // La sesión vive en el teléfono, así que el servidor no sabe al pintar la
   // página en cuáles ya votó: se le pregunta apenas carga.
@@ -59,11 +63,26 @@ export default function VotacionInvitado({
       setErrores((e) => ({ ...e, [v.id]: "Elige una alternativa para votar." }));
       return;
     }
+    if (v.pide_datos) {
+      const falta = !nombre.trim()
+        ? "Escribe tu nombre para votar."
+        : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+          ? "Escribe un correo válido para votar."
+          : "";
+      if (falta) {
+        setErrores((e) => ({ ...e, [v.id]: falta }));
+        return;
+      }
+    }
     setEnviando(v.id);
     const res = await fetch(`/api/eventos/${slug}/votaciones/${v.id}/votar`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ opciones: elegidas, sesion: sesionInvitado() }),
+      body: JSON.stringify({
+        opciones: elegidas,
+        sesion: sesionInvitado(),
+        ...(v.pide_datos ? { nombre: nombre.trim(), email: email.trim() } : {}),
+      }),
     });
     const datos = await res.json().catch(() => null);
     setEnviando(0);
@@ -73,7 +92,7 @@ export default function VotacionInvitado({
       setErrores((e) => ({ ...e, [v.id]: "" }));
       return;
     }
-    // 409: este teléfono ya había votado (por ejemplo, en otra pestaña).
+    // 409: este teléfono (o este correo) ya había votado.
     if (res.status === 409) {
       setVotaciones((vs) => vs.map((x) => (x.id === v.id ? { ...x, votada: true } : x)));
     }
@@ -85,6 +104,9 @@ export default function VotacionInvitado({
       {votaciones.map((v) => {
         const elegidas = seleccion[v.id] ?? [];
         const error = errores[v.id];
+        // Si alguna alternativa trae foto, todas llevan el mismo espacio para
+        // que la lista se vea pareja.
+        const conImagen = v.opciones.some((o) => o.imagen);
         return (
           <Tarjeta key={v.id}>
             <p className="mb-1 pl-1 font-serif text-sm font-bold leading-snug">{v.titulo}</p>
@@ -112,20 +134,13 @@ export default function VotacionInvitado({
                         }`}
                       >
                         {/* La marca va a la izquierda, como en las encuestas: es
-                            la misma decisión para el invitado. */}
+                            la misma decisión para el participante. */}
                         <span
                           className={`h-4 w-4 shrink-0 border ${
                             v.multiple ? "rounded-[4px]" : "rounded-full"
                           } ${marcada ? "border-rosa bg-rosa" : "border-neutral-300 bg-white"}`}
                         />
-                        {o.imagen && (
-                          /* eslint-disable-next-line @next/next/no-img-element */
-                          <img
-                            src={urlArchivo(o.imagen)}
-                            alt=""
-                            className="h-14 w-14 shrink-0 rounded-[8px] object-cover"
-                          />
-                        )}
+                        {conImagen && <Miniatura opcion={o} className="h-14 w-14" />}
                         <span className="flex-1 leading-snug">{o.texto}</span>
                       </button>
                     );
@@ -137,7 +152,34 @@ export default function VotacionInvitado({
                     Puedes elegir más de una alternativa.
                   </p>
                 )}
-                {error && <p className="mb-2 text-[12px] text-rose-600">{error}</p>}
+                {v.pide_datos === 1 && (
+                  <div className="mb-3 space-y-2">
+                    <p className="pl-1 text-[11px] opacity-70">
+                      Para votar, cuéntanos quién eres. Se vota una vez por correo.
+                    </p>
+                    <input
+                      value={nombre}
+                      onChange={(e) => setNombre(e.target.value)}
+                      placeholder="Tu nombre"
+                      aria-label="Tu nombre"
+                      autoComplete="name"
+                      maxLength={120}
+                      className="w-full rounded-[9px] bg-white px-3 py-2 text-[13px] outline-none placeholder:text-neutral-400"
+                    />
+                    <input
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="Tu correo"
+                      aria-label="Tu correo"
+                      type="email"
+                      inputMode="email"
+                      autoComplete="email"
+                      maxLength={200}
+                      className="w-full rounded-[9px] bg-white px-3 py-2 text-[13px] outline-none placeholder:text-neutral-400"
+                    />
+                  </div>
+                )}
+                {error && <p role="alert" className="mb-2 text-[12px] text-rose-600">{error}</p>}
                 <BotonRosa onClick={() => votar(v)} disabled={enviando === v.id}>
                   {enviando === v.id ? "Enviando…" : "Votar"}
                 </BotonRosa>
@@ -150,11 +192,30 @@ export default function VotacionInvitado({
   );
 }
 
+// La foto de una alternativa, o su inicial si no tiene: el espacio es el mismo.
+function Miniatura({ opcion, className }: { opcion: OpcionPublica; className: string }) {
+  if (opcion.imagen) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={urlArchivo(opcion.imagen)} alt="" className={`${className} shrink-0 rounded-[8px] object-cover`} />
+    );
+  }
+  return (
+    <span
+      aria-hidden
+      className={`${className} grid shrink-0 place-items-center rounded-[8px] bg-gris-card font-serif text-lg font-bold opacity-60`}
+    >
+      {opcion.texto.trim().charAt(0).toUpperCase()}
+    </span>
+  );
+}
+
 function Resultados({ votacion }: { votacion: VotacionPublica }) {
   const total = votacion.total;
+  const conImagen = votacion.opciones.some((o) => o.imagen);
 
   // Sin conteos hay dos motivos: esta votación nunca los muestra o todavía no
-  // se cierra. En los dos casos el invitado ya cumplió su parte.
+  // se cierra. En los dos casos el participante ya cumplió su parte.
   if (total === undefined) {
     return (
       <div className="rounded-[10px] bg-white px-4 py-8 text-center">
@@ -177,16 +238,19 @@ function Resultados({ votacion }: { votacion: VotacionPublica }) {
           const porcentaje = total ? Math.round((votos * 100) / total) : 0;
           const mia = votacion.elegidas.includes(o.id);
           return (
-            <div key={o.id} className="rounded-[10px] bg-white p-2">
-              <div className="mb-1.5 flex items-baseline gap-2 text-[13px]">
-                <span className={`flex-1 leading-snug ${mia ? "font-bold" : ""}`}>
-                  {o.texto}
-                  {mia && " ✓"}
-                </span>
-                <span className="text-[12px] font-bold">{porcentaje}%</span>
-              </div>
-              <div className="h-2 overflow-hidden rounded-full bg-gris-card">
-                <div className="h-full rounded-full bg-rosa" style={{ width: `${porcentaje}%` }} />
+            <div key={o.id} className="flex items-center gap-3 rounded-[10px] bg-white p-2">
+              {conImagen && <Miniatura opcion={o} className="h-11 w-11" />}
+              <div className="min-w-0 flex-1">
+                <div className="mb-1.5 flex items-baseline gap-2 text-[13px]">
+                  <span className={`flex-1 leading-snug ${mia ? "font-bold" : ""}`}>
+                    {o.texto}
+                    {mia && " ✓"}
+                  </span>
+                  <span className="text-[12px] font-bold">{porcentaje}%</span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-gris-card">
+                  <div className="h-full rounded-full bg-rosa" style={{ width: `${porcentaje}%` }} />
+                </div>
               </div>
             </div>
           );

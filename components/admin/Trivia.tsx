@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import CampoImagen from "./CampoImagen";
 
 type Puesto = { participante: string; puntaje: number; total: number };
 
@@ -8,6 +9,10 @@ type PreguntaApi = {
   id: number;
   enunciado: string;
   opciones: string[];
+  /** La foto de cada alternativa, en el mismo orden ("" = sin foto). */
+  imagenes: string[];
+  /** Si se pueden marcar varias alternativas o una sola. */
+  multiple: boolean;
   correctas: number[];
   explicacion: string;
 };
@@ -41,6 +46,8 @@ function preguntaNueva(): PreguntaEditable {
     id: 0,
     enunciado: "",
     opciones: ["", ""],
+    imagenes: ["", ""],
+    multiple: false,
     correctas: [],
     explicacion: "",
   };
@@ -99,6 +106,7 @@ export default function Trivia({ slug }: { slug: string }) {
   function quitarOpcion(id: number, pregunta: PreguntaEditable, i: number) {
     editarPregunta(id, pregunta.clave, {
       opciones: pregunta.opciones.filter((_, j) => j !== i),
+      imagenes: pregunta.imagenes.filter((_, j) => j !== i),
       correctas: pregunta.correctas
         .filter((c) => c !== i)
         .map((c) => (c > i ? c - 1 : c)),
@@ -131,10 +139,11 @@ export default function Trivia({ slug }: { slug: string }) {
       body: JSON.stringify({
         titulo: t.titulo,
         descripcion: t.descripcion,
-        preguntas: t.preguntas.map(({ id, enunciado, opciones, correctas, explicacion }) => ({
+        preguntas: t.preguntas.map(({ id, enunciado, opciones, imagenes, multiple, correctas, explicacion }) => ({
           id,
           enunciado,
-          opciones,
+          opciones: opciones.map((texto, j) => ({ texto, imagen: imagenes[j] ?? "" })),
+          multiple,
           correctas,
           explicacion,
         })),
@@ -184,9 +193,10 @@ export default function Trivia({ slug }: { slug: string }) {
         <div className="mr-auto">
           <h2 className="mb-1 font-medium">Trivia</h2>
           <p className="text-sm text-neutral-500">
-            Preguntas con alternativas para los invitados. Solo se juegan las trivias
-            abiertas, y las respuestas correctas nunca salen del servidor antes de que el
-            invitado responda.
+            Preguntas con alternativas para los participantes: con texto, con foto o con
+            las dos. Cada pregunta es de selección única o múltiple. Solo se juegan las
+            trivias abiertas, y las respuestas correctas nunca salen del servidor antes de
+            que el participante responda.
           </p>
         </div>
         <button
@@ -284,6 +294,24 @@ export default function Trivia({ slug }: { slug: string }) {
                 </div>
 
                 <div className="space-y-2 pl-7">
+                  <label className="flex items-center gap-2 text-xs text-neutral-500">
+                    Respuesta:
+                    <select
+                      value={p.multiple ? "multiple" : "unica"}
+                      onChange={(e) => {
+                        const multiple = e.target.value === "multiple";
+                        editarPregunta(t.id, p.clave, {
+                          multiple,
+                          // Con una sola respuesta posible, queda una sola correcta.
+                          correctas: multiple ? p.correctas : p.correctas.slice(0, 1),
+                        });
+                      }}
+                      className="rounded-lg border border-neutral-300 bg-white px-2 py-1 text-xs text-neutral-800"
+                    >
+                      <option value="unica">Selección única: se elige una</option>
+                      <option value="multiple">Selección múltiple: se pueden marcar varias</option>
+                    </select>
+                  </label>
                   {p.opciones.map((opcion, j) => (
                     <div key={j} className="flex items-center gap-2">
                       <label
@@ -291,19 +319,32 @@ export default function Trivia({ slug }: { slug: string }) {
                         title="Marcar como correcta"
                       >
                         <input
-                          type="checkbox"
+                          type={p.multiple ? "checkbox" : "radio"}
+                          name={`correcta-${p.clave}`}
                           checked={p.correctas.includes(j)}
                           onChange={() =>
                             editarPregunta(t.id, p.clave, {
-                              correctas: p.correctas.includes(j)
-                                ? p.correctas.filter((c) => c !== j)
-                                : [...p.correctas, j],
+                              correctas: !p.multiple
+                                ? [j]
+                                : p.correctas.includes(j)
+                                  ? p.correctas.filter((c) => c !== j)
+                                  : [...p.correctas, j],
                             })
                           }
                           className="h-4 w-4"
                         />
                         correcta
                       </label>
+                      <CampoImagen
+                        compacto
+                        valor={p.imagenes[j] ?? ""}
+                        etiqueta={`Foto de la alternativa ${j + 1}`}
+                        onCambio={(imagen) =>
+                          editarPregunta(t.id, p.clave, {
+                            imagenes: p.opciones.map((_, k) => (k === j ? imagen : (p.imagenes[k] ?? ""))),
+                          })
+                        }
+                      />
                       <input
                         value={opcion}
                         onChange={(e) =>
@@ -313,7 +354,7 @@ export default function Trivia({ slug }: { slug: string }) {
                             ),
                           })
                         }
-                        placeholder={`Alternativa ${j + 1}`}
+                        placeholder={p.imagenes[j] ? "Texto (opcional)" : `Alternativa ${j + 1}`}
                         className="min-w-0 flex-1 rounded-lg border border-neutral-300 px-3 py-1.5 text-sm"
                       />
                       <button
@@ -330,7 +371,10 @@ export default function Trivia({ slug }: { slug: string }) {
                   <div className="flex flex-wrap items-center gap-3">
                     <button
                       onClick={() =>
-                        editarPregunta(t.id, p.clave, { opciones: [...p.opciones, ""] })
+                        editarPregunta(t.id, p.clave, {
+                          opciones: [...p.opciones, ""],
+                          imagenes: [...p.opciones.map((_, k) => p.imagenes[k] ?? ""), ""],
+                        })
                       }
                       disabled={p.opciones.length >= 8}
                       className="rounded-lg border border-neutral-300 px-3 py-1 text-xs hover:bg-neutral-50 disabled:opacity-30"
@@ -376,7 +420,8 @@ export default function Trivia({ slug }: { slug: string }) {
               Guardar trivia
             </button>
             <span className="text-xs text-neutral-400">
-              Las preguntas sin enunciado o con menos de dos alternativas no se guardan.
+              Las preguntas sin enunciado o con menos de dos alternativas no se guardan. Las
+              fotos quedan al guardar la trivia.
             </span>
           </div>
 

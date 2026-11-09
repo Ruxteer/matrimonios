@@ -10,7 +10,9 @@
     "typecheck": "tsc --noEmit",
     "test:registro": "node --test tests/registro.test.mjs",
     "test:flow": "node scripts/test-venito-flow.mjs",
-    "test:fotos": "node scripts/test-fotos.mjs"
+    "test:fotos": "node scripts/test-fotos.mjs",
+    "test:clientes": "node scripts/test-clientes-mapa.mjs",
+    "test:quick-wins": "node scripts/test-quick-wins.mjs"
   },
   "dependencies": {
     "@libsql/client": "^0.17.4",
@@ -18,6 +20,7 @@
     "@vercel/blob": "^2.6.1",
     "exceljs": "^4.4.0",
     "jszip": "^3.10.1",
+    "lucide-react": "1.59.0",
     "next": "16.2.11",
     "qrcode": "^1.5.4",
     "react": "19.2.4",

@@ -10,7 +10,7 @@ type Ctx = { params: Promise<{ slug: string }> };
 
 // De dónde salen los participantes. El documento menciona una fuente "fotos",
 // pero la tabla photos no guarda quién subió cada imagen, así que no se ofrece.
-const FUENTES = ["invitados", "mensajes", "lista", "base"] as const;
+const FUENTES = ["invitados", "mensajes", "lista", "base", "inscritos"] as const;
 
 function fuenteValida(valor: unknown): (typeof FUENTES)[number] {
   return FUENTES.includes(valor as (typeof FUENTES)[number])
@@ -34,8 +34,8 @@ export async function GET(req: NextRequest, { params }: Ctx) {
   if (!puedeAdministrar(req, evento)) {
     // Columnas nombradas una por una: `detalle` y la base traen datos personales.
     const publicados = await consultar<Record<string, unknown>>(
-      `SELECT id, titulo, premio, cantidad, publicado, ganadores, suplentes,
-              ejecutado_at, created_at
+      `SELECT id, titulo, premio, imagen, fecha_sorteo, fuente, cantidad, publicado,
+              ganadores, suplentes, ejecutado_at, created_at
          FROM sorteos WHERE evento_id = ? AND publicado = 1 ORDER BY id`,
       [evento.id]
     );

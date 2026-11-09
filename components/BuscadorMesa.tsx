@@ -7,10 +7,12 @@ import { IconCopas } from "./Icons";
 
 export default function BuscadorMesa({
   slug,
+  titulo = "Busca tu mesa",
   boton = "Buscar",
   inicial = "",
 }: {
   slug: string;
+  titulo?: string;
   boton?: string;
   inicial?: string;
 }) {
@@ -63,7 +65,7 @@ export default function BuscadorMesa({
     >
       <div className="mb-3 flex items-center gap-3 pl-2.5">
         <IconCopas className="h-[34px] w-auto shrink-0" />
-        <p className="font-serif text-base font-bold">Busca tu mesa</p>
+        <p className="font-serif text-base font-bold">{titulo}</p>
       </div>
 
       <div className="relative mb-1.5">

@@ -83,8 +83,12 @@ export function cookieEvento(evento: Evento): string {
 }
 
 export function esAdminDeEvento(req: NextRequest, evento: Evento): boolean {
+  return esAdminDeEventoCookie(evento, req.cookies.get("evento")?.value ?? "");
+}
+
+/** Lo mismo, desde el valor de la cookie (para las páginas del servidor). */
+export function esAdminDeEventoCookie(evento: Evento, cookie: string): boolean {
   if (!evento.clave) return false;
-  const cookie = req.cookies.get("evento")?.value ?? "";
   const corte = cookie.indexOf(".");
   if (corte < 1) return false;
   if (Number(cookie.slice(0, corte)) !== evento.id) return false;

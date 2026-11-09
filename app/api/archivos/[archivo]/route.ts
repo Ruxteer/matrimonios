@@ -35,13 +35,24 @@ export async function GET(
     }
     if (!permitido) return noEncontrado();
   } else {
-    // Banners, planos y alternativas de votación son parte del sitio público.
-    // Una imagen sin referencias solo se sirve a una sesión del panel.
+    // Banners, planos, fotos de las zonas del mapa, alternativas de votación y
+    // de trivia, actividades de la agenda y premios de sorteos son parte del
+    // sitio público. Una imagen sin referencias solo se sirve a una sesión del
+    // panel. Las listas en JSON se buscan por el nombre, que es único.
     const referencia = await uno<{ id: number }>(
-      `SELECT id FROM eventos WHERE banner = ?1 OR banner_movil = ?1 OR mapa = ?1
+      `SELECT id FROM eventos
+        WHERE banner = ?1 OR banner_movil = ?1 OR mapa = ?1 OR instr(mapa_config, ?1) > 0
        UNION ALL
        SELECT v.evento_id AS id FROM votacion_opciones o
-         JOIN votaciones v ON v.id = o.votacion_id WHERE o.imagen = ?1 LIMIT 1`,
+         JOIN votaciones v ON v.id = o.votacion_id WHERE o.imagen = ?1
+       UNION ALL
+       SELECT evento_id AS id FROM agenda WHERE imagen = ?1
+       UNION ALL
+       SELECT evento_id AS id FROM sorteos WHERE imagen = ?1
+       UNION ALL
+       SELECT t.evento_id AS id FROM trivia_preguntas p
+         JOIN trivias t ON t.id = p.trivia_id WHERE instr(p.imagenes, ?1) > 0
+       LIMIT 1`,
       [archivo]
     );
     if (!referencia && !isAdmin(req) && !(await eventoDeSesion(req))) return noEncontrado();

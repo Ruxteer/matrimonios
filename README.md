@@ -12,15 +12,15 @@ el panel (pestaña **Módulos**). Ninguno es obligatorio:
 | Módulo | Qué hace | Dirección |
 |---|---|---|
 | Registro | Contactos, consentimientos y confirmación sin cuenta | `/<evento>/registro` |
-| Mesa | Cada invitado busca su nombre y ve su mesa | `/<boda>/mesa` |
+| Mesa / Sector | Cada participante busca su nombre y ve su mesa (o su sector en una activación) | `/<boda>/mesa` |
 | Mensajes | Saludos escritos para los novios | `/<boda>/mensaje` |
 | Fotos | Galería colaborativa | `/<boda>/foto` |
-| Mapa | El plano del lugar (necesita una imagen subida) | `/<boda>/mapa` |
-| Agenda | El programa del día | `/<boda>/agenda` |
-| Encuestas | Preguntas configurables y sus resultados | `/<boda>/encuesta` |
-| Votaciones | Alternativas, votos y resultados en vivo | `/<boda>/votacion` |
-| Sorteos | Ganadores al azar entre invitados o participantes | `/<boda>/sorteo` |
-| Trivia | Juego de preguntas con puntaje y ranking | `/<boda>/trivia` |
+| Mapa | El plano del lugar con zonas tocables; cada zona abre su ficha (foto, descripción, lo que ofrece) | `/<boda>/mapa`, `/<boda>/mapa/<zona>` |
+| Agenda | El programa del día; cada actividad puede llevar una imagen | `/<boda>/agenda` |
+| Encuestas | Preguntas configurables (también de emojis) y sus resultados | `/<boda>/encuesta` |
+| Votaciones | Alternativas con foto opcional, voto libre o con registro y resultados en pantalla | `/<boda>/votacion` |
+| Sorteos | Ganadores al azar entre la lista o entre quienes se inscriben con el QR | `/<boda>/sorteo`, `/<boda>/sorteo/<id>` |
+| Trivia | Preguntas con alternativas de texto o foto, de selección única o múltiple | `/<boda>/trivia` |
 
 Un módulo apagado desaparece del inicio, de los atajos y del panel, y su
 dirección responde 404. Los módulos nuevos que se agreguen al producto aparecen
@@ -56,18 +56,28 @@ La primera vez que se usa se crea sola la base en `data/matrimonio.db`.
 
 ## Cómo se usa
 
-1. Entra a `/admin`, ingresa la contraseña y crea un matrimonio con los nombres
-   de los novios. Queda con una dirección propia, por ejemplo `/camila-y-juan`.
-2. En la pestaña **Invitados**, importa la lista desde Excel (hay una plantilla
-   descargable) o agrégalos a mano. Cualquier celda se edita haciendo clic.
-3. En **Módulos** eliges qué ve el invitado y en qué orden: enciendes o apagas
-   cada módulo y lo subes o bajas en la lista.
+1. Entra a `/admin` (la portada `/` lleva ahí) e ingresa la contraseña. Verás los
+   **clientes**: Venito (los eventos propios) y las agencias o marcas que agregues
+   con su nombre, color y logo. Dentro de un cliente creas el matrimonio o la
+   activación; queda con una dirección propia, por ejemplo `/camila-y-juan`.
+2. En la pestaña **Participantes**, importa la lista desde Excel o agrega a
+   alguien con solo nombre y sector. **Descargar plantilla** baja un Excel con
+   la lista completa y el estado de cada uno. Cualquier celda se edita haciendo
+   clic. Quien se elimina pasa a **Eliminados**, con la fecha y hora en que se
+   eliminó, y desde ahí se restaura o se borra para siempre.
+3. En **Módulos** eliges qué ve el participante y en qué orden: enciendes o
+   apagas cada módulo y lo subes o bajas en la lista. Con **Textos** cambias el
+   título de su página, el texto de su tarjeta en el inicio y su botón, con
+   vista previa; lo que se deja vacío vuelve al texto predeterminado. Abajo se
+   editan el saludo del inicio y la frase antes de las tarjetas.
 4. En **Ajustes** puedes cambiar los nombres, la fecha, la dirección web, la
    **paleta de colores** (hay paletas listas o los cinco colores a mano, con
-   vista previa), subir un banner propio y el plano del lugar, y descargar el
-   **QR** en PNG o SVG para imprimirlo.
+   vista previa), subir un banner propio, mover el evento a otro cliente y
+   descargar el **QR** en PNG o SVG para imprimirlo.
 5. Cada módulo encendido tiene su pestaña en el panel para cargar su contenido
-   (actividades de la agenda, encuestas, votaciones, sorteos, trivia).
+   (actividades de la agenda, encuestas, votaciones, sorteos, trivia). En
+   **Mapa** se sube el plano, se agregan zonas haciendo clic sobre él (se
+   arrastran para moverlas) y se completa la ficha y la leyenda de cada una.
 6. Los invitados escanean ese QR y llegan al sitio de esa boda.
 
 El Excel se lee de forma flexible: busca la fila de encabezados dentro de las
@@ -80,12 +90,14 @@ nombre) en vez de duplicarlos.
 
 ```
 app/[slug]/          sitio público de cada matrimonio (una carpeta por módulo)
-app/admin/           panel: lista de matrimonios y administración de cada uno
+app/admin/           panel: clientes, eventos de cada cliente y administración de cada evento
 app/api/eventos/     API por matrimonio (invitados, QR y el contenido de cada módulo)
+app/api/clientes/    API de clientes (solo con la clave maestra)
 components/          interfaz compartida (components/admin/ es el panel)
 lib/modulos.ts       catálogo de módulos: agregar uno aquí lo deja disponible en el panel
 lib/                 base de datos, autenticación, archivos, colores y lógica de eventos
 public/design/       marco floral y textos del diseño
+public/brand/        logos de Venito y Ruxteer, mascota del pie del panel
 data/                base de datos y archivos subidos (no se versiona)
 ```
 
@@ -110,6 +122,8 @@ completo. No se sube al repositorio.
 - Las páginas de los invitados son públicas; no piden ninguna clave.
 - Todo lo del panel (ver y editar invitados, leer mensajes, ver la galería) exige
   la cookie de sesión que entrega `ADMIN_PASSWORD`.
+- Los clientes solo los ve y edita la clave maestra. Con la clave propia de un
+  evento se administra ese evento (incluido su mapa), pero no se cambia su cliente.
 - Las fotos solo se entregan al panel autorizado, al participante que las subió o a la pantalla con su enlace válido (solo aprobadas).
 
 ## Despliegue en Vercel
@@ -201,10 +215,28 @@ el organizador.
 
 ### Fotografías y pantalla en vivo
 
-Las nuevas fotos pasan por moderación de forma predeterminada. En **Fotos** se
-pueden aprobar, rechazar, eliminar y descargar individualmente o como ZIP.
-La pantalla en vivo muestra únicamente fotos aprobadas. Las fotos antiguas
-conservan el estado aprobado al migrar la base.
+Las nuevas fotos pasan por moderación de forma predeterminada (**Con
+aprobación**); en **Fotos** se puede cambiar a **Publicación automática** para
+todo el evento. Ahí mismo se pueden aprobar, rechazar, eliminar y descargar
+individualmente o como ZIP. La pantalla en vivo muestra únicamente fotos
+aprobadas. Las fotos antiguas conservan el estado aprobado al migrar la base.
+
+### Pantallas para proyectar
+
+Todas usan la clave de pantalla del evento (`?k=…`, la entrega el panel en
+**Ajustes**) o la sesión del panel, y muestran el indicador **EN VIVO**.
+
+- `/pantalla/<evento>`: mensajes y fotos. En Ajustes se elige cuántos de cada
+  uno se ven a la vez (de 1 a 4). Los mensajes van en tarjetas blancas y, con
+  fotos y mensajes encendidos, el QR invita a «Escanea y súmate».
+- `/pantalla/<evento>/votacion/<id>` («Ver pantalla» en Votaciones): resultados
+  que se actualizan cada pocos segundos y el QR para votar.
+- `/pantalla/<evento>/sorteo/<id>` («Ver pantalla» en Sorteos): foto del premio,
+  contador de participantes y cuenta regresiva hasta la fecha del sorteo, con el
+  QR de inscripción mientras está abierta. Al llegar la hora aparece
+  **Realizar sorteo**, que hace pasar los nombres y deja al ganador en grande
+  hasta que el organizador lo cierra. La pantalla sortea una sola vez; volver a
+  sortear se hace desde el panel.
 
 Cuando Registro y la asociación están activos, se requiere completar el registro
 antes de subir una imagen. El límite se aplica en el servidor, incluso ante
@@ -243,6 +275,9 @@ ADMIN_PASSWORD=clave-solo-para-pruebas npm run dev -- --port 3106
 # En otra terminal:
 REGISTRO_TEST_URL=http://127.0.0.1:3106 REGISTRO_TEST_PASSWORD=clave-solo-para-pruebas npm run test:registro
 VENITO_TEST_URL=http://127.0.0.1:3106 VENITO_TEST_PASSWORD=clave-solo-para-pruebas npm run test:flow
+VENITO_TEST_URL=http://127.0.0.1:3106 VENITO_TEST_PASSWORD=clave-solo-para-pruebas npm run test:clientes
+VENITO_TEST_URL=http://127.0.0.1:3106 VENITO_TEST_PASSWORD=clave-solo-para-pruebas npm run test:fotos
+VENITO_TEST_URL=http://127.0.0.1:3106 VENITO_TEST_PASSWORD=clave-solo-para-pruebas npm run test:quick-wins
 npm run typecheck
 npm run lint
 npm run build

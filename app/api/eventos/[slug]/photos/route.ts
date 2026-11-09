@@ -4,6 +4,7 @@ import { getEvento } from "@/lib/eventos";
 import { borrarArchivo, guardarImagen, MAX_BYTES } from "@/lib/archivos";
 import { contarFotos, insertarFoto, listarFotos, type EstadoFoto } from "@/lib/fotos";
 import { moduloActivo } from "@/lib/modulos";
+import { ejecutar } from "@/lib/db";
 import { registroConfig } from "@/lib/registro";
 import { participanteActual } from "@/lib/registro-servidor";
 
@@ -78,4 +79,22 @@ export async function POST(req: NextRequest, { params }: Ctx) {
     console.error("No se pudo guardar la foto del evento", error);
     return NextResponse.json({ error: "No pudimos guardar la foto. Intenta de nuevo." }, { status: 500 });
   }
+}
+
+// Al pasar a publicación automática, las que quedaron esperando se pueden
+// aprobar todas de una vez.
+export async function PATCH(req: NextRequest, { params }: Ctx) {
+  const { slug } = await params;
+  const evento = await getEvento(slug);
+  if (!evento) return NextResponse.json({ error: "no existe" }, { status: 404 });
+  if (!puedeAdministrar(req, evento)) return noAutorizado();
+  const body = await req.json().catch(() => null);
+  if (body?.accion !== "aprobar_pendientes") {
+    return NextResponse.json({ error: "acción desconocida" }, { status: 400 });
+  }
+  const res = await ejecutar(
+    "UPDATE photos SET estado = 'aprobada' WHERE evento_id = ? AND estado = 'pendiente'",
+    [evento.id]
+  );
+  return NextResponse.json({ aprobadas: res.rowsAffected });
 }
