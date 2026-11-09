@@ -107,15 +107,97 @@ body {
 .activation-screen-welcome .screen-instructions { font-size: 2.3vh; line-height: 1.5; }
 .activation-screen-welcome .screen-participate { border-radius: 3vh; background: var(--p-tarjeta); padding: 5vh 3vw; text-align: center; }
 
-/* Mapa interactivo: el punto de cada zona late despacio para invitar a tocarlo,
-   y la ficha de una zona abre con su foto a todo el ancho, bajo el banner. */
-@keyframes zona-pulso {
-  0% { transform: scale(1); opacity: 0.45; }
-  70%, 100% { transform: scale(1.9); opacity: 0; }
+/* Mapa interactivo. Todo el movimiento usa dos curvas: una que frena largo
+   (llega rápido y se asienta despacio) y un resorte apenas pasado de largo
+   para lo que aparece. Nada rebota ni gira: el mapa se ve tranquilo. */
+:root {
+  --curva-suave: cubic-bezier(.16, 1, .3, 1);
+  --curva-resorte: cubic-bezier(.34, 1.36, .64, 1);
 }
-.zona-pulso { animation: zona-pulso 2.4s ease-out infinite; }
+
+/* El plano aparece cuando ya tiene su tamaño, sin saltos. Si el JavaScript no
+   llegara, se muestra igual a los 2,5 s. Al volver de una zona ya está listo
+   desde el primer cuadro y no se anima. */
+@keyframes mapa-seguro { to { opacity: 1; transform: none; } }
+.plano-mapa { opacity: 0; transform: translateY(10px) scale(.985); animation: mapa-seguro 0s 2.5s forwards; }
+.plano-mapa[data-listo] {
+  opacity: 1;
+  transform: none;
+  animation: none;
+  transition: opacity .7s var(--curva-suave), transform .9s var(--curva-suave);
+}
+
+/* Los puntos entran uno tras otro, como si se fueran encendiendo. */
+@keyframes zona-entrada {
+  from { opacity: 0; transform: scale(.35); }
+}
+.plano-mapa[data-entrada][data-listo] .zona-enlace {
+  animation: zona-entrada .75s var(--curva-resorte) both;
+  animation-delay: calc(.3s + var(--i, 0) * 75ms);
+}
+
+/* El latido: un halo que se abre rápido y se apaga lento, con una pausa
+   antes del siguiente. Cada punto late a destiempo para que el plano
+   respire en vez de parpadear entero a la vez. */
+@keyframes zona-pulso {
+  0% { transform: scale(1); opacity: .4; }
+  60%, 100% { transform: scale(2.4); opacity: 0; }
+}
+.zona-pulso {
+  animation: zona-pulso 3.4s var(--curva-suave) infinite;
+  animation-delay: calc(var(--i, 0) * -.7s);
+}
+
+/* Al pasar o tocar, el punto crece apenas y se hunde al apretarlo. */
+.zona-punto { transition: transform .5s var(--curva-suave), scale .5s var(--curva-suave), box-shadow .5s var(--curva-suave); }
+@media (hover: hover) {
+  .zona-enlace:hover .zona-punto { transform: scale(1.16); box-shadow: 0 6px 14px rgb(0 0 0 / .3); }
+}
+.zona-enlace:active .zona-punto { transform: scale(.9); transition-duration: .18s; }
+
+/* El aviso de que el plano se desliza aparece después y lo muestra una vez. */
+@keyframes pista-entra { from { opacity: 0; transform: translateY(4px); } }
+@keyframes pista-derecha { 50% { transform: translateX(4px); } }
+@keyframes pista-izquierda { 50% { transform: translateX(-4px); } }
+.pista-mapa { animation: pista-entra .8s var(--curva-suave) 1s both; }
+.pista-flecha { display: inline-block; animation: pista-derecha 1.6s ease-in-out 1.6s 2; }
+.pista-flecha-izquierda { animation-name: pista-izquierda; }
+
+/* La ficha de una zona: la foto se acerca suave, la hoja sube encima y lo que
+   ofrece la zona aparece en orden. */
+@keyframes zona-foto { from { opacity: 0; transform: scale(1.07); } }
+@keyframes zona-hoja { from { opacity: 0; transform: translateY(28px); } }
+@keyframes zona-item { from { opacity: 0; transform: translateY(10px); } }
+.zona-foto { animation: zona-foto 1.1s var(--curva-suave) both; }
+.zona-hoja { animation: zona-hoja .8s var(--curva-suave) .08s both; }
+.zona-item { animation: zona-item .7s var(--curva-suave) both; animation-delay: calc(.32s + var(--i, 0) * 70ms); }
+
+/* Entre el mapa y una zona (View Transitions): el punto tocado se transforma
+   en el ícono de la ficha mientras el mapa se retira; al volver, el ícono
+   regresa al plano y la ficha baja. */
+::view-transition-group(.vt-zona) {
+  animation-duration: .6s;
+  animation-timing-function: var(--curva-suave);
+}
+::view-transition-image-pair(.vt-zona) { animation-name: vt-desenfoque; }
+@keyframes vt-desenfoque { 35% { filter: blur(2px); } }
+::view-transition-old(.vt-zona),
+::view-transition-new(.vt-zona) { animation-duration: .45s; animation-timing-function: var(--curva-suave); }
+/* Lo que se va sale rápido y acelerando, para no competir con lo que llega. */
+::view-transition-old(.vt-mapa-sale) { animation: vt-mapa-sale .26s cubic-bezier(.4, 0, 1, 1) both; }
+::view-transition-old(.vt-zona-sale) { animation: vt-zona-sale .24s cubic-bezier(.4, 0, 1, 1) both; }
+@keyframes vt-mapa-sale { to { opacity: 0; transform: scale(.97); filter: blur(4px); } }
+@keyframes vt-zona-sale { to { opacity: 0; transform: translateY(28px); filter: blur(2px); } }
+
 @media (prefers-reduced-motion: reduce) {
+  .plano-mapa, .plano-mapa[data-listo] { opacity: 1; transform: none; animation: none; transition: none; }
   .zona-pulso { animation: none; opacity: 0; }
+  .plano-mapa[data-entrada][data-listo] .zona-enlace,
+  .pista-mapa, .pista-flecha, .zona-foto, .zona-hoja, .zona-item { animation: none; }
+  .zona-punto { transition: none; }
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) { animation-duration: 0s !important; animation-delay: 0s !important; }
 }
 .mapa-hoja { margin-inline: -16px; padding: 24px 16px 4px; border-radius: 24px 24px 0 0; background: var(--background); }
 .zona-detalle { margin: -24px -24px 0; }

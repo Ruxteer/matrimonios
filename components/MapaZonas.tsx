@@ -1,17 +1,22 @@
 import { IconoZona } from "./IconosMapa";
 
 // Punto de una zona sobre el plano. Toma el color de los botones del evento
-// (--rosa) y late despacio para que se note que se puede tocar.
+// (--rosa) y late despacio para que se note que se puede tocar. Mide en
+// proporción al plano que lo contiene (que es un @container): así tapa la
+// misma porción del plano a cualquier tamaño y no se come los nombres
+// impresos en él. Fuera de un contenedor, cqw cae al ancho de la pantalla.
+const TAMANO = "size-[clamp(20px,3.8cqw,34px)]";
+
 export function PuntoZona({ icono, elegido = false }: { icono: string; elegido?: boolean }) {
   return (
-    <span className="relative grid size-8 place-items-center">
+    <span className={`relative grid place-items-center ${TAMANO}`}>
       <span className="zona-pulso absolute inset-0 rounded-full bg-rosa" aria-hidden="true" />
       <span
-        className={`relative grid size-8 place-items-center rounded-full bg-rosa text-rosa-texto shadow-[0_2px_6px_rgb(0_0_0/0.35)] ring-2 transition ${
+        className={`zona-punto relative grid size-full place-items-center rounded-full bg-rosa text-rosa-texto shadow-[0_1px_4px_rgb(0_0_0/0.4)] ring-2 ${
           elegido ? "scale-125 ring-black" : "ring-white"
         }`}
       >
-        <IconoZona icono={icono} className="size-4" grosor={2.25} />
+        <IconoZona icono={icono} className="size-[58%]" grosor={2.25} />
       </span>
     </span>
   );

@@ -236,7 +236,7 @@ export default function Mapa({
                 ref={plano}
                 onClick={tocarPlano}
                 style={colores}
-                className={`relative select-none overflow-hidden rounded-xl border border-neutral-200 ${
+                className={`@container relative select-none overflow-hidden rounded-xl border border-neutral-200 ${
                   agregando ? "cursor-crosshair ring-2 ring-neutral-900 ring-offset-2" : ""
                 }`}
               >
