@@ -103,6 +103,7 @@ const ESQUEMA = [
      evento_id INTEGER NOT NULL DEFAULT 1,
      nombre TEXT NOT NULL,
      mensaje TEXT NOT NULL,
+     estado TEXT NOT NULL DEFAULT 'aprobada',
      created_at TEXT DEFAULT (datetime('now'))
    )`,
   `CREATE TABLE IF NOT EXISTS photos (
@@ -335,6 +336,8 @@ async function preparar(c: Client) {
     votos: { nombre: TEXTO, email: TEXTO },
     // Las preguntas de antes se jugaban siempre marcando varias: quedan así.
     trivia_preguntas: { imagenes: TEXTO, multiple: "INTEGER NOT NULL DEFAULT 1" },
+    // Los mensajes de antes no pasaban por revisión: quedan aprobados.
+    messages: { estado: "TEXT NOT NULL DEFAULT 'aprobada'" },
     photos: {
       participante_id: "INTEGER",
       estado: "TEXT NOT NULL DEFAULT 'aprobada'",

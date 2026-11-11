@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import CampoImagen from "./CampoImagen";
+import Descargas from "./Descargas";
 
 type Puesto = { participante: string; puntaje: number; total: number };
 
@@ -190,15 +191,16 @@ export default function Trivia({ slug }: { slug: string }) {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-3">
-        <div className="mr-auto">
+        <div className="mr-auto max-w-2xl">
           <h2 className="mb-1 font-medium">Trivia</h2>
           <p className="text-sm text-neutral-500">
             Preguntas con alternativas para los participantes: con texto, con foto o con
             las dos. Cada pregunta es de selección única o múltiple. Solo se juegan las
             trivias abiertas, y las respuestas correctas nunca salen del servidor antes de
-            que el participante responda.
+            que el participante responda. La descarga trae cada partida con su puntaje.
           </p>
         </div>
+        <Descargas slug={slug} modulo="trivia" />
         <button
           onClick={crear}
           className="rounded-lg bg-neutral-900 px-4 py-2 text-sm text-white hover:bg-neutral-700"

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { TipoPregunta } from "@/lib/db";
 import { EMOJIS_PREDETERMINADOS, MAXIMO_EMOJIS } from "@/lib/encuestas";
+import Descargas from "./Descargas";
 
 type PreguntaFila = {
   id: number;
@@ -212,11 +213,17 @@ export default function Encuestas({ slug }: { slug: string }) {
   return (
     <div className="space-y-6">
       <section>
-        <h2 className="mb-1 font-medium">Encuestas</h2>
-        <p className="mb-3 text-sm text-neutral-500">
-          Preguntas para conocer la opinión de los participantes. Cada uno responde una vez
-          desde su teléfono y solo ve las encuestas abiertas.
-        </p>
+        <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+          <div className="max-w-2xl">
+            <h2 className="mb-1 font-medium">Encuestas</h2>
+            <p className="text-sm text-neutral-500">
+              Preguntas para conocer la opinión de los participantes. Cada uno responde una vez
+              desde su teléfono y solo ve las encuestas abiertas. La descarga trae todas las
+              respuestas: en Excel, una hoja por encuesta.
+            </p>
+          </div>
+          <Descargas slug={slug} modulo="encuestas" />
+        </div>
         <div className="flex flex-wrap gap-2">
           <input
             value={titulo}

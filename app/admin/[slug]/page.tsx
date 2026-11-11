@@ -15,13 +15,12 @@ import Trivia from "@/components/admin/Trivia";
 import Fotos from "@/components/admin/Fotos";
 import Registro from "@/components/admin/Registro";
 import Mapa from "@/components/admin/Mapa";
-import Mensajes from "@/components/admin/Mensajes";
+import Mensajes, { type Mensaje } from "@/components/admin/Mensajes";
 import { etiquetaEvento } from "@/lib/identidad";
 import { modulosDeEvento, type ModuloId } from "@/lib/modulos";
 import type { Guest } from "@/lib/db";
 import type { EventoPanel } from "@/lib/eventos";
 
-type Mensaje = { id: number; nombre: string; mensaje: string; created_at: string };
 type Tab = ModuloId | "invitados" | "modulos" | "ajustes";
 
 export default function AdminEvento() {
@@ -169,7 +168,7 @@ export default function AdminEvento() {
         />
       )}
 
-      {actual === "mensajes" && <Mensajes evento={evento} mensajes={mensajes} onGuardado={actualizarVista} />}
+      {actual === "mensajes" && <Mensajes evento={evento} mensajes={mensajes} onCambio={setMensajes} onGuardado={actualizarVista} />}
 
       {actual === "fotos" && <Fotos evento={evento} onGuardado={actualizarVista} />}
       {actual === "mapa" && <Mapa evento={evento} onGuardado={actualizarVista} />}

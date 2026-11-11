@@ -43,12 +43,12 @@ export async function datosPantalla(eventoId: number): Promise<DatosPantalla> {
       [eventoId, MAXIMO]
     ) : Promise.resolve([]),
     muestraMensajes ? consultar<Row>(
-      "SELECT id, nombre, mensaje, created_at FROM messages WHERE evento_id = ? ORDER BY id DESC LIMIT ?",
+      "SELECT id, nombre, mensaje, created_at FROM messages WHERE evento_id = ? AND estado = 'aprobada' ORDER BY id DESC LIMIT ?",
       [eventoId, MAXIMO]
     ) : Promise.resolve([]),
     consultar<Row>(
       `SELECT (SELECT COUNT(*) FROM photos WHERE evento_id = ?1 AND estado = 'aprobada' AND ?2 = 1) AS fotos,
-              (SELECT COUNT(*) FROM messages WHERE evento_id = ?1 AND ?3 = 1) AS mensajes`,
+              (SELECT COUNT(*) FROM messages WHERE evento_id = ?1 AND estado = 'aprobada' AND ?3 = 1) AS mensajes`,
       [eventoId, muestraFotos ? 1 : 0, muestraMensajes ? 1 : 0]
     ),
   ]);

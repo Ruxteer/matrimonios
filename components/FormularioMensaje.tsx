@@ -8,7 +8,7 @@ const MAX = 300;
 export default function FormularioMensaje({ slug }: { slug: string }) {
   const [nombre, setNombre] = useState("");
   const [mensaje, setMensaje] = useState("");
-  const [enviado, setEnviado] = useState(false);
+  const [enviado, setEnviado] = useState<"aprobada" | "pendiente" | null>(null);
   const [error, setError] = useState("");
 
   async function enviar(e: React.FormEvent) {
@@ -19,7 +19,8 @@ export default function FormularioMensaje({ slug }: { slug: string }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ nombre, mensaje }),
     });
-    if (res.ok) setEnviado(true);
+    const data = await res.json().catch(() => null);
+    if (res.ok) setEnviado(data?.estado === "pendiente" ? "pendiente" : "aprobada");
     else setError("No pudimos enviar tu mensaje. Intenta de nuevo.");
   }
 
@@ -27,7 +28,11 @@ export default function FormularioMensaje({ slug }: { slug: string }) {
     return (
       <div className="mx-auto w-full max-w-[259px] rounded-[20px] bg-gris-card px-6 py-10 text-center shadow-sm">
         <p className="mb-2 font-serif text-2xl font-bold">¡Gracias!</p>
-        <p className="text-sm opacity-70">Tu mensaje quedó guardado con mucho cariño.</p>
+        <p className="text-sm opacity-70">
+          {enviado === "pendiente"
+            ? "Tu mensaje quedó guardado con mucho cariño. Aparecerá en la pantalla apenas lo aprueben."
+            : "Tu mensaje quedó guardado con mucho cariño."}
+        </p>
       </div>
     );
   }

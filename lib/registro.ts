@@ -17,6 +17,8 @@ export type RegistroConfig = {
   fotos_por_participante: number;
   fotos_requiere_registro: boolean;
   fotos_moderacion: boolean;
+  /** Los mensajes esperan aprobación antes de salir en la pantalla. */
+  mensajes_moderacion: boolean;
   capacidad: number;
   inicio: string;
   fin: string;
@@ -38,6 +40,7 @@ export const REGISTRO_DEFAULT: RegistroConfig = {
   fotos_por_participante: 1,
   fotos_requiere_registro: true,
   fotos_moderacion: true,
+  mensajes_moderacion: false,
   capacidad: 0,
   inicio: "",
   fin: "",
@@ -142,6 +145,7 @@ function configurar(valor: unknown): RegistroConfig {
     fotos_por_participante: entero(data.fotos_por_participante ?? 1, 1, 1, 100),
     fotos_requiere_registro: booleano("fotos_requiere_registro"),
     fotos_moderacion: booleano("fotos_moderacion"),
+    mensajes_moderacion: booleano("mensajes_moderacion"),
     capacidad: entero(data.capacidad ?? 0, 0, 0, 1000000),
     inicio: fecha(data.inicio),
     fin: fecha(data.fin),

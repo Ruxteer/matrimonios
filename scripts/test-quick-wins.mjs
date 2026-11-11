@@ -2,10 +2,11 @@
 // con historial, restaurar, Excel), pantalla (cuántos a la vez), aprobación de
 // fotos, agenda con imagen, encuesta de emojis, votación con registro y su
 // pantalla, sorteo por QR con cuenta regresiva, trivia con fotos y selección
-// única, y textos editables por módulo.
+// única, aprobación de mensajes, descargas por módulo y textos editables.
 // Ejecutar contra una instancia local con datos de prueba, nunca producción.
 // VENITO_TEST_URL=http://127.0.0.1:3106 VENITO_TEST_PASSWORD=... node scripts/test-quick-wins.mjs
 import assert from 'node:assert/strict';
+import ExcelJS from 'exceljs';
 
 const base = process.env.VENITO_TEST_URL || 'http://127.0.0.1:3106';
 assert(['127.0.0.1', 'localhost', '[::1]'].includes(new URL(base).hostname), 'Solo se permite un servidor local de pruebas');
@@ -184,6 +185,80 @@ try {
   const paginaTrivia = await (await expected(await request(`/${slug}/trivia`), 200)).text();
   contiene(paginaTrivia, fotoTrivia, 'trivia');
   paso('Trivia: alternativas con foto, selección única o múltiple');
+
+  // ---------------------------------------------------------- aprobación de mensajes
+  const mensajeLibre = await (await expected(await request(`${api}/messages`, json({ nombre: 'Tía Marta', mensaje: 'Sale altiro' })), 201)).json();
+  assert.equal(mensajeLibre.estado, 'aprobada', 'sin aprobación el mensaje sale apenas llega');
+  await expected(await request(api, json({ registro_config: { ...JSON.parse(evento.registro_config || '{}'), mensajes_moderacion: true } }, 'PATCH'), admin), 200);
+  const enEspera = await (await expected(await request(`${api}/messages`, json({ nombre: 'Primo', mensaje: 'Espero revisión' })), 201)).json();
+  assert.equal(enEspera.estado, 'pendiente');
+  let enPantalla = await (await expected(await request(`${api}/pantalla?k=${k}`), 200)).json();
+  assert.deepEqual(enPantalla.mensajes.map((m) => m.mensaje), ['Sale altiro'], 'el pendiente no sale en la pantalla');
+  let losMensajes = await (await expected(await request(`${api}/messages`, {}, admin), 200)).json();
+  const pendiente = losMensajes.find((m) => m.estado === 'pendiente');
+  await expected(await request(`${api}/messages/${pendiente.id}`, json({ estado: 'aprobada' }, 'PATCH')), 401);
+  await expected(await request(`${api}/messages/${pendiente.id}`, json({ estado: 'otro' }, 'PATCH'), admin), 400);
+  await expected(await request(`${api}/messages/${pendiente.id}`, json({ estado: 'aprobada' }, 'PATCH'), admin), 200);
+  const libre = losMensajes.find((m) => m.mensaje === 'Sale altiro');
+  await expected(await request(`${api}/messages/${libre.id}`, json({ estado: 'rechazada' }, 'PATCH'), admin), 200);
+  enPantalla = await (await expected(await request(`${api}/pantalla?k=${k}`), 200)).json();
+  assert.deepEqual(enPantalla.mensajes.map((m) => m.mensaje), ['Espero revisión'], 'el rechazado deja de salir');
+  assert.equal(enPantalla.totales.mensajes, 1);
+  await expected(await request(`${api}/messages`, json({ nombre: 'Otro', mensaje: 'También espera' })), 201);
+  const masiva = await (await expected(await request(`${api}/messages`, json({ accion: 'aprobar_pendientes' }, 'PATCH'), admin), 200)).json();
+  assert.equal(masiva.aprobadas, 1);
+  await expected(await request(`${api}/messages/${libre.id}`, { method: 'DELETE' }, admin), 200);
+  losMensajes = await (await expected(await request(`${api}/messages`, {}, admin), 200)).json();
+  assert.equal(losMensajes.length, 2);
+  assert(losMensajes.every((m) => m.estado === 'aprobada'));
+  paso('Mensajes: con aprobación o publicación automática, aprobar, rechazar y eliminar');
+
+  // ---------------------------------------------------------- descargas por módulo
+  await expected(await request(`${api}/encuestas/${encuesta.id}/respuestas`, json({ participante: 'Marta', sesion: 'e1', valores: [{ pregunta_id: pregunta.id, valor: '😍' }] })), 201);
+  const libroDe = async (modulo) => {
+    const res = await expected(await request(`${api}/exportar/${modulo}?formato=xlsx`, {}, admin), 200);
+    assert.match(res.headers.get('content-type'), /spreadsheetml/);
+    assert.match(res.headers.get('content-disposition'), new RegExp(`${modulo}-${slug}\\.xlsx`));
+    const libro = new ExcelJS.Workbook();
+    await libro.xlsx.load(Buffer.from(await res.arrayBuffer()));
+    return libro;
+  };
+  const csvDe = async (modulo) => {
+    const res = await expected(await request(`${api}/exportar/${modulo}?formato=csv`, {}, admin), 200);
+    assert.match(res.headers.get('content-type'), /text\/csv/);
+    return res.text();
+  };
+  const filas = (hoja) => hoja.getSheetValues().slice(1).map((f) => (f ?? []).slice(1));
+
+  let libro = await libroDe('encuestas');
+  assert.deepEqual(libro.worksheets.map((h) => h.name), ['¿Qué tal'], 'una hoja por encuesta (sin «?», que Excel no acepta)');
+  assert.deepEqual(filas(libro.worksheets[0])[1].slice(1, 2).concat(filas(libro.worksheets[0])[1].slice(3)), ['Marta', '😍']);
+  assert.match(await csvDe('encuestas'), /"¿Qué tal\?";"1";"Marta";"[^"]+";"¿Cómo lo pasaste\?";"😍"/);
+
+  libro = await libroDe('mensajes');
+  assert.deepEqual(filas(libro.getWorksheet('Mensajes')).slice(1).map((f) => f.slice(0, 3)), [['Primo', 'Espero revisión', 'Aprobado'], ['Otro', 'También espera', 'Aprobado']]);
+  assert.match(await csvDe('mensajes'), /"Nombre";"Mensaje";"Estado";"Fecha"\r\n"Primo";"Espero revisión";"Aprobado"/);
+
+  libro = await libroDe('votaciones');
+  assert.deepEqual(libro.worksheets.map((h) => h.name), ['Resultados', 'Votos']);
+  assert.deepEqual(filas(libro.getWorksheet('Resultados')).slice(1), [['Mejor stand', 'Rojo', 1, '100%'], ['Mejor stand', 'Azul', 0, '0%']]);
+  assert.match(await csvDe('votaciones'), /"Mejor stand";"Rojo";"Luis";"luis@example\.invalid"/);
+
+  libro = await libroDe('sorteos');
+  assert.deepEqual(libro.worksheets.map((h) => h.name), ['Sorteos', 'Resultados', 'Inscritos con QR']);
+  assert.equal(filas(libro.getWorksheet('Sorteos'))[1][3], 'Realizado');
+  assert.equal(filas(libro.getWorksheet('Inscritos con QR')).length, 3);
+  const csvSorteos = await csvDe('sorteos');
+  assert.match(csvSorteos, /"¡Gana un viaje!";"Un viaje a Italia";"Ganador";"1";"(Carla|Diego) Prueba";"Correo: (carla|diego)@example\.invalid"/);
+
+  libro = await libroDe('trivia');
+  assert.deepEqual(filas(libro.getWorksheet('Partidas'))[1].slice(0, 6), ['¿Cuánto sabes?', 1, 'Jugador', 2, 2, '100%']);
+  assert.match(await csvDe('trivia'), /"Jugador";"2";"2";"100%"/);
+
+  await expected(await request(`${api}/exportar/trivia?formato=xlsx`), 401);
+  await expected(await request(`${api}/exportar/registro?formato=xlsx`, {}, admin), 404);
+  await expected(await request(`${api}/exportar/trivia?formato=pdf`, {}, admin), 400);
+  paso('Descargas: Excel y CSV de mensajes, encuestas, votaciones, sorteos y trivia');
 
   // ---------------------------------------------------------- textos editables
   await expected(await request(api, json({ textos: { saludo: 'Bienvenidos al stand', modulos: { votaciones: { titulo: 'Elige al MVP', boton: 'Votar ya' }, mesa: { titulo: 'Encuentra tu zona' } } } }, 'PATCH'), admin), 200);

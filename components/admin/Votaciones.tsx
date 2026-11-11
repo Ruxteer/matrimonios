@@ -5,6 +5,7 @@ import { urlArchivo } from "@/lib/urls";
 import type { OpcionVotacion, Votacion } from "@/lib/db";
 import type { EventoPanel } from "@/lib/eventos";
 import { urlPantallaEvento } from "./AjustesPantalla";
+import Descargas from "./Descargas";
 
 type OpcionAdmin = OpcionVotacion & { votos: number };
 type VotacionAdmin = Votacion & { opciones: OpcionAdmin[]; total: number };
@@ -176,13 +177,18 @@ export default function Votaciones({ evento }: { evento: EventoPanel }) {
   return (
     <div className="space-y-6">
       <section>
-        <h2 className="mb-1 font-medium">Votaciones</h2>
-        <p className="mb-3 text-sm text-neutral-500">
-          Los participantes eligen entre las alternativas que escribas aquí. Cada teléfono
-          (o cada correo, si pides registro) vota una vez por votación, y solo se muestran
-          las votaciones abiertas. Con «Ver pantalla» proyectas los resultados en vivo, con
-          un QR para votar.
-        </p>
+        <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+          <div className="max-w-2xl">
+            <h2 className="mb-1 font-medium">Votaciones</h2>
+            <p className="text-sm text-neutral-500">
+              Los participantes eligen entre las alternativas que escribas aquí. Cada teléfono
+              (o cada correo, si pides registro) vota una vez por votación, y solo se muestran
+              las votaciones abiertas. Con «Ver pantalla» proyectas los resultados en vivo, con
+              un QR para votar. La descarga trae los resultados y cada voto.
+            </p>
+          </div>
+          <Descargas slug={slug} modulo="votaciones" />
+        </div>
         <form onSubmit={crear} className="flex flex-wrap items-center gap-2">
           <input
             value={nueva}

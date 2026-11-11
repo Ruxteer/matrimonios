@@ -1,6 +1,7 @@
 import { consultar, ejecutar, uno } from "./db";
+import type { EstadoModeracion } from "./moderacion";
 
-export type EstadoFoto = "pendiente" | "aprobada" | "rechazada";
+export type EstadoFoto = EstadoModeracion;
 export type FotoAdmin = {
   id: number;
   evento_id: number;

@@ -397,7 +397,7 @@ export async function participantesDeSorteo(
   } else if (sorteo.fuente === "mensajes") {
     const filas = await consultar<{ nombre: string }>(
       `SELECT DISTINCT TRIM(nombre) AS nombre FROM messages
-        WHERE evento_id = ? AND TRIM(nombre) <> '' ORDER BY nombre`,
+        WHERE evento_id = ? AND TRIM(nombre) <> '' AND estado <> 'rechazada' ORDER BY nombre`,
       [eventoId]
     );
     todos = filas.map((f) => ({ nombre: String(f.nombre), clave: `n:${normalizar(f.nombre)}` }));

@@ -4,15 +4,10 @@ import { useCallback, useEffect, useState } from "react";
 import { urlArchivo } from "@/lib/urls";
 import type { EstadoFoto, FotoAdmin } from "@/lib/fotos";
 import type { EventoPanel } from "@/lib/eventos";
-import { registroConfig } from "@/lib/registro";
 import AjustesPantalla from "./AjustesPantalla";
+import { Aprobacion, COLORES_ESTADO } from "./Moderacion";
 
 const ETIQUETAS: Record<EstadoFoto, string> = { pendiente: "Pendiente", aprobada: "Aprobada", rechazada: "Rechazada" };
-const COLORES: Record<EstadoFoto, string> = {
-  pendiente: "bg-amber-50 text-amber-800",
-  aprobada: "bg-emerald-50 text-emerald-800",
-  rechazada: "bg-rose-50 text-rose-800",
-};
 const BOTON = "rounded-lg border border-neutral-200 px-3 py-2 text-sm font-medium hover:bg-neutral-50 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-800";
 
 async function obtenerFotos(slug: string): Promise<FotoAdmin[]> {
@@ -155,7 +150,7 @@ export default function Fotos({
           <button type="button" onClick={() => void descargar()} disabled={cargando || descargando || !fotos.length} className="rounded-lg border border-neutral-900 bg-neutral-900 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-700 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-800">{descargando ? "Preparando ZIP…" : "Descargar todas (ZIP)"}</button>
         </div>
       </div>
-      <Aprobacion evento={evento} onGuardado={onGuardado} pendientes={pendientes} onAprobarPendientes={aprobarPendientes} />
+      <Aprobacion que="fotos" evento={evento} onGuardado={onGuardado} pendientes={pendientes} onAprobarPendientes={aprobarPendientes} />
       <AjustesPantalla evento={evento} onGuardado={onGuardado} que="fotos" />
       <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar por estado">
         {(["todas", "pendiente", "aprobada", "rechazada"] as const).map((estado) => (
@@ -182,7 +177,7 @@ export default function Fotos({
                     {foto.participante_email && <p className="truncate text-xs text-neutral-500" title={foto.participante_email}>{foto.participante_email}</p>}
                     <p className="mt-1 text-xs text-neutral-400">#{foto.id} · {foto.created_at}</p>
                   </div>
-                  <span className={`rounded-full px-2 py-1 text-xs font-medium ${COLORES[foto.estado]}`}>{ETIQUETAS[foto.estado]}</span>
+                  <span className={`rounded-full px-2 py-1 text-xs font-medium ${COLORES_ESTADO[foto.estado]}`}>{ETIQUETAS[foto.estado]}</span>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {foto.estado !== "aprobada" && <button type="button" onClick={() => void cambiar(foto, "aprobada")} disabled={ocupada !== null} className={`${BOTON} border-emerald-200 text-emerald-800`}>{ocupada === foto.id ? "Guardando…" : "Aprobar"}</button>}
@@ -196,74 +191,5 @@ export default function Fotos({
         </div>
       )}
     </section>
-  );
-}
-
-// Una sola regla para todo el evento: o cada foto se revisa antes de salir en
-// la pantalla, o sale apenas llega. Es el mismo ajuste que la pestaña Registro.
-function Aprobacion({
-  evento,
-  onGuardado,
-  pendientes,
-  onAprobarPendientes,
-}: {
-  evento: EventoPanel;
-  onGuardado: (e: EventoPanel) => void;
-  pendientes: number;
-  onAprobarPendientes: () => void;
-}) {
-  const [moderacion, setModeracion] = useState(registroConfig(evento).fotos_moderacion);
-  const [estado, setEstado] = useState("");
-
-  async function elegir(valor: boolean) {
-    if (valor === moderacion) return;
-    setModeracion(valor);
-    setEstado("Guardando…");
-    const res = await fetch(`/api/eventos/${evento.slug}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ registro_config: { ...registroConfig(evento), fotos_moderacion: valor } }),
-    });
-    if (!res.ok) {
-      setModeracion(!valor);
-      setEstado("No pudimos guardar el cambio.");
-      return;
-    }
-    onGuardado(await res.json());
-    setEstado(valor ? "Las fotos nuevas esperarán tu aprobación." : "Las fotos nuevas se publican apenas llegan.");
-  }
-
-  const opciones = [
-    { valor: true, titulo: "Con aprobación", detalle: "Revisas cada foto y solo las aprobadas salen en la pantalla." },
-    { valor: false, titulo: "Publicación automática", detalle: "Cada foto sale en la pantalla apenas llega, sin revisión." },
-  ];
-  return (
-    <fieldset className="rounded-xl border border-neutral-200 p-4">
-      <legend className="px-1 text-sm font-medium">Aprobación de fotos</legend>
-      <div className="grid gap-2 sm:grid-cols-2">
-        {opciones.map((o) => (
-          <label
-            key={o.titulo}
-            className={`flex cursor-pointer gap-3 rounded-lg border p-3 text-sm ${
-              moderacion === o.valor ? "border-neutral-900 bg-neutral-50" : "border-neutral-200 hover:bg-neutral-50"
-            }`}
-          >
-            <input type="radio" name="aprobacion-fotos" checked={moderacion === o.valor} onChange={() => elegir(o.valor)} className="mt-0.5" />
-            <span>
-              <span className="block font-medium">{o.titulo}</span>
-              <span className="block text-neutral-500">{o.detalle}</span>
-            </span>
-          </label>
-        ))}
-      </div>
-      <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
-        {estado && <p role="status" className="text-neutral-500">{estado}</p>}
-        {!moderacion && pendientes > 0 && (
-          <button type="button" onClick={onAprobarPendientes} className="rounded-lg border border-emerald-300 px-3 py-1.5 font-medium text-emerald-800 hover:bg-emerald-50">
-            Aprobar las {pendientes} pendientes
-          </button>
-        )}
-      </div>
-    </fieldset>
   );
 }

@@ -6,6 +6,7 @@ import type { EventoPanel } from "@/lib/eventos";
 import type { Resultado } from "@/lib/sorteos";
 import CampoImagen from "./CampoImagen";
 import { urlPantallaEvento } from "./AjustesPantalla";
+import Descargas from "./Descargas";
 
 type SorteoAdmin = Sorteo & {
   participantes: number;
@@ -96,11 +97,15 @@ export default function Sorteos({ evento }: { evento: EventoPanel }) {
         >
           Nuevo sorteo
         </button>
-        <p className="max-w-2xl text-sm text-neutral-500">
+        <p className="max-w-2xl flex-1 text-sm text-neutral-500">
           Los sorteos publicados se ven en /{slug}/sorteo. Con «Ver pantalla» lo proyectas:
           foto del premio, cuántos participan y la cuenta regresiva; al llegar la hora
-          aparece el botón «Realizar sorteo» y el ganador sale en grande.
+          aparece el botón «Realizar sorteo» y el ganador sale en grande. La descarga trae
+          todos los sorteos, sus ganadores y suplentes, y los inscritos con QR.
         </p>
+        <div className="ml-auto">
+          <Descargas slug={slug} modulo="sorteos" />
+        </div>
       </div>
 
       {sorteos.length === 0 ? (
