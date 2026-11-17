@@ -13,9 +13,9 @@ type Resultado = {
   companions: string[];
 };
 
-function Contenido({ slug, titulo, boton, sector }: Textos) {
-  // En un matrimonio se busca la mesa; en una activación, el sector.
-  const palabra = sector ? "sector" : "mesa";
+function Contenido({ slug, titulo, boton, palabra, femenino }: Textos) {
+  // "mesa" en un matrimonio, "sector" en una activación, u otra que fije el evento.
+  const asignad = femenino ? "asignada" : "asignado";
   const q = useSearchParams().get("q") ?? "";
   const [resultados, setResultados] = useState<Resultado[] | null>(q ? null : []);
   const [elegido, setElegido] = useState<Resultado | null>(null);
@@ -48,7 +48,7 @@ function Contenido({ slug, titulo, boton, sector }: Textos) {
         <p className="mb-6 text-sm opacity-70">
           Revisa que tu nombre esté escrito igual que en la invitación.
         </p>
-        <BuscadorMesa slug={slug} titulo={titulo} boton={boton === "Buscar mi mesa" ? "Buscar de nuevo" : boton} inicial={q} />
+        <BuscadorMesa slug={slug} titulo={titulo} boton={boton} inicial={q} />
       </div>
     );
   }
@@ -83,7 +83,7 @@ function Contenido({ slug, titulo, boton, sector }: Textos) {
 
       {elegido.mesa ? (
         <>
-          <p className="mb-4 font-serif text-base font-bold">Tu {palabra} asignad{sector ? "o" : "a"} es:</p>
+          <p className="mb-4 font-serif text-base font-bold">Tu {palabra} {asignad} es:</p>
           <div className="mx-auto mb-8 w-full max-w-[256px] rounded-[20px] bg-gris-card px-6 pb-5 pt-6 shadow-sm">
             <IconCopas className="mx-auto mb-2 h-[39px] w-auto" />
             <p className="font-serif text-[72px] font-bold leading-none">{elegido.mesa}</p>
@@ -91,7 +91,7 @@ function Contenido({ slug, titulo, boton, sector }: Textos) {
         </>
       ) : (
         <p className="mb-8 text-sm opacity-70">
-          Tu {palabra} aún no está asignad{sector ? "o" : "a"} — pregunta en recepción.
+          Tu {palabra} aún no está {asignad} — pregunta en recepción.
         </p>
       )}
 
@@ -118,7 +118,7 @@ function Contenido({ slug, titulo, boton, sector }: Textos) {
   );
 }
 
-type Textos = { slug: string; titulo?: string; boton?: string; sector?: boolean };
+type Textos = { slug: string; titulo?: string; boton?: string; palabra: string; femenino: boolean };
 
 export default function ResultadoMesa(props: Textos) {
   return (

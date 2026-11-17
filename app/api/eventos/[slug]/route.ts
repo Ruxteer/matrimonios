@@ -11,6 +11,7 @@ import {
 } from "@/lib/eventos";
 import { errorRegistroConfig } from "@/lib/registro";
 import { clientePorId, getCliente } from "@/lib/clientes";
+import { leerTextos } from "@/lib/textos";
 
 export const dynamic = "force-dynamic";
 
@@ -51,6 +52,12 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
       { error: "La dirección web solo la puede cambiar el administrador." },
       { status: 403 }
     );
+  }
+
+  // La palabra del módulo Sector (sala, stand…) se cobra aparte: la fija el
+  // administrador. Con la clave del evento se guarda la que ya estaba.
+  if ("textos" in body && !isAdmin(req)) {
+    body.textos = { ...leerTextos(body.textos), asignacion: leerTextos(evento.textos).asignacion };
   }
 
   // El cliente al que pertenece el evento es cosa del administrador. Llega

@@ -7,6 +7,7 @@ import type { EventoPanel } from "@/lib/eventos";
 import { paletaEvento, variablesPaleta } from "@/lib/config";
 import { definicion, type ModuloId } from "@/lib/modulos";
 import {
+  asignacionDe,
   INICIO_PREDETERMINADO,
   LARGOS,
   SIN_TITULO,
@@ -57,7 +58,8 @@ export default function TextosModulo({
   id: ModuloId;
   onGuardado: (e: EventoPanel) => void;
 }) {
-  const base = predeterminados(evento.tipo, id);
+  const guardados = leerTextos(evento.textos);
+  const base = predeterminados(evento.tipo, id, guardados.asignacion);
   const [valores, setValores] = useState<Valores>(() => textosModulo(evento, id));
   const [estado, setEstado] = useState("");
   const [guardando, setGuardando] = useState(false);
@@ -65,7 +67,7 @@ export default function TextosModulo({
   const modulo = definicion(id);
   const destacado = Boolean(modulo.destacado);
   const conTitulo = !SIN_TITULO.includes(id);
-  const propios = leerTextos(evento.textos).modulos[id] ?? {};
+  const propios = guardados.modulos[id] ?? {};
   const personalizado = Object.keys(propios).length > 0;
   const cambiado = (["titulo", "tarjeta", "boton"] as const).some(
     (c) => valores[c].trim() !== textosModulo(evento, id)[c]
@@ -96,6 +98,16 @@ export default function TextosModulo({
   return (
     <div className="grid gap-5 border-t border-neutral-200 bg-neutral-50 p-4 md:grid-cols-[1fr_300px]">
       <div className="space-y-3">
+        {id === "mesa" && (
+          <PalabraAsignacion
+            evento={evento}
+            onGuardado={(e) => {
+              onGuardado(e);
+              // Los textos que siguen al predeterminado cambian con la palabra.
+              setValores(textosModulo(e, id));
+            }}
+          />
+        )}
         {conTitulo && (
           <label className="block text-sm">
             <span className="mb-1 block text-neutral-500">
@@ -204,6 +216,85 @@ export default function TextosModulo({
         </MarcoVistaPrevia>
       </div>
     </div>
+  );
+}
+
+// Lo que entrega el buscador: "mesa", "sector" o la palabra que se contrate
+// (sala, stand…). Solo la cambia la clave maestra; con la clave del evento se ve.
+function PalabraAsignacion({ evento, onGuardado }: { evento: EventoPanel; onGuardado: (e: EventoPanel) => void }) {
+  const propia = leerTextos(evento.textos).asignacion;
+  const actual = asignacionDe(evento.tipo, propia);
+  const [nombre, setNombre] = useState(actual.nombre);
+  const [femenino, setFemenino] = useState(actual.femenino);
+  const [estado, setEstado] = useState("");
+
+  if (!evento.maestra) {
+    return (
+      <p className="text-sm text-neutral-500">
+        Cada participante ve su <strong className="font-medium text-neutral-700">{actual.nombre}</strong>. Para usar otra palabra (sala, stand…) pídelo a Venito.
+      </p>
+    );
+  }
+
+  const limpio = nombre.trim();
+  const cambiado = limpio !== actual.nombre || femenino !== actual.femenino;
+  async function guardar(asignacion: { nombre: string; femenino: boolean }, mensaje: string) {
+    setEstado("Guardando…");
+    try {
+      const actualizado = await guardarTextos(evento, { ...leerTextos(evento.textos), asignacion });
+      const nueva = asignacionDe(actualizado.tipo, leerTextos(actualizado.textos).asignacion);
+      setNombre(nueva.nombre);
+      setFemenino(nueva.femenino);
+      onGuardado(actualizado);
+      setEstado(mensaje);
+    } catch (e) {
+      setEstado(e instanceof Error ? e.message : "No pudimos guardar los textos.");
+    }
+  }
+
+  return (
+    <fieldset className="rounded-lg border border-neutral-200 bg-white p-3">
+      <legend className="px-1 text-sm font-medium">Lo que se asigna</legend>
+      <p className="mb-2 text-xs text-neutral-500">Solo con la clave maestra: otra palabra que mesa o sector se cobra aparte.</p>
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="text-sm">
+          <span className="mb-1 block text-neutral-500">Palabra</span>
+          <input
+            value={nombre}
+            onChange={(e) => setNombre(e.target.value)}
+            placeholder={asignacionDe(evento.tipo).nombre}
+            maxLength={LARGOS.asignacion}
+            className={`${CAMPO} w-44`}
+          />
+        </label>
+        <label className="text-sm">
+          <span className="mb-1 block text-neutral-500">Se dice</span>
+          <select value={femenino ? "a" : "o"} onChange={(e) => setFemenino(e.target.value === "a")} className={`${CAMPO} w-auto`}>
+            <option value="a">asignada</option>
+            <option value="o">asignado</option>
+          </select>
+        </label>
+        <button
+          onClick={() => guardar({ nombre: limpio, femenino }, "Palabra publicada")}
+          disabled={!cambiado || !limpio}
+          className="rounded-lg bg-neutral-900 px-4 py-2 text-sm text-white hover:bg-neutral-700 disabled:opacity-40"
+        >
+          Guardar
+        </button>
+        {propia.nombre && (
+          <button
+            onClick={() => guardar({ nombre: "", femenino: true }, "Palabra predeterminada")}
+            className="rounded-lg border border-neutral-300 px-3 py-2 text-sm text-neutral-600 hover:bg-neutral-50"
+          >
+            Volver a «{asignacionDe(evento.tipo).nombre}»
+          </button>
+        )}
+      </div>
+      <p className="mt-2 text-sm text-neutral-600">
+        El participante verá: «Tu {limpio || actual.nombre} {femenino ? "asignada" : "asignado"} es: 12»
+        {estado && <span className="ml-2 text-neutral-500">· {estado}</span>}
+      </p>
+    </fieldset>
   );
 }
 

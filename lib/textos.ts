@@ -9,19 +9,29 @@ import { definicion, esModuloId, type ModuloId } from "./modulos";
 export type CampoTexto = "titulo" | "tarjeta" | "boton";
 export type TextosModulo = Record<CampoTexto, string>;
 export type TextosInicio = { saludo: string; durante: string };
+/**
+ * Lo que entrega el módulo Sector: "mesa" en un matrimonio, "sector" en una
+ * activación, u otra palabra (sala, stand…) que fija la clave maestra. El
+ * género arma "asignada" o "asignado". Nombre vacío = el predeterminado.
+ */
+export type Asignacion = { nombre: string; femenino: boolean };
 export type Textos = TextosInicio & {
   modulos: Partial<Record<ModuloId, Partial<TextosModulo>>>;
+  asignacion: Asignacion;
 };
 
 type DatosEvento = Pick<Evento, "textos" | "tipo">;
 
-export const LARGOS: Record<CampoTexto | keyof TextosInicio, number> = {
+export const LARGOS: Record<CampoTexto | keyof TextosInicio | "asignacion", number> = {
   titulo: 80,
   tarjeta: 90,
   boton: 30,
   saludo: 80,
   durante: 80,
+  asignacion: 30,
 };
+
+export const SIN_ASIGNACION: Asignacion = { nombre: "", femenino: true };
 
 export const INICIO_PREDETERMINADO: TextosInicio = {
   saludo: "Hola, nos alegra que estés aquí",
@@ -52,13 +62,24 @@ const EN_ACTIVACION: Partial<Record<ModuloId, Partial<TextosModulo>>> = {
 /** Los módulos cuyo título no se edita aquí (el registro tiene el suyo en su pestaña). */
 export const SIN_TITULO: ModuloId[] = ["registro"];
 
-export function predeterminados(tipo: Evento["tipo"], id: ModuloId): TextosModulo {
+/** La palabra que usa el módulo Sector en este evento, con su género. */
+export function asignacionDe(tipo: Evento["tipo"], propia: Asignacion = SIN_ASIGNACION): Asignacion {
+  if (propia.nombre) return propia;
+  return tipo === "activacion" ? { nombre: "sector", femenino: false } : { nombre: "mesa", femenino: true };
+}
+
+export function predeterminados(tipo: Evento["tipo"], id: ModuloId, asignacion: Asignacion = SIN_ASIGNACION): TextosModulo {
   const modulo = definicion(id);
+  // Con una palabra propia, los textos del buscador la usan: "Busca tu sala".
+  const propia = id === "mesa" && asignacion.nombre
+    ? { titulo: `Busca tu ${asignacion.nombre}`, tarjeta: `Busca tu ${asignacion.nombre}`, boton: `Buscar mi ${asignacion.nombre}` }
+    : {};
   return {
     titulo: TITULOS[id],
     tarjeta: modulo.tarjeta,
     boton: modulo.boton,
     ...(tipo === "activacion" ? EN_ACTIVACION[id] : {}),
+    ...propia,
   };
 }
 
@@ -98,15 +119,31 @@ export function leerTextos(valor: unknown): Textos {
     saludo: texto(datos.saludo, LARGOS.saludo).replace(/\n/g, " "),
     durante: texto(datos.durante, LARGOS.durante).replace(/\n/g, " "),
     modulos,
+    asignacion: leerAsignacion(datos.asignacion),
   };
+}
+
+function leerAsignacion(valor: unknown): Asignacion {
+  if (!valor || typeof valor !== "object") return SIN_ASIGNACION;
+  const crudo = valor as Record<string, unknown>;
+  let nombre = texto(crudo.nombre, LARGOS.asignacion).replace(/\s+/g, " ");
+  // Va a mitad de frase ("Tu sala asignada es:"): sin mayúscula inicial,
+  // salvo que sea una sigla ("VIP").
+  if (!/^\p{Lu}{2}/u.test(nombre)) nombre = nombre.charAt(0).toLocaleLowerCase("es-CL") + nombre.slice(1);
+  return nombre ? { nombre, femenino: crudo.femenino !== false } : SIN_ASIGNACION;
 }
 
 export function normalizarTextos(valor: unknown, tipo: Evento["tipo"]): string {
   const limpios = leerTextos(valor);
   // Un texto igual al predeterminado no se guarda: así, si mañana cambia el
   // predeterminado, el evento lo recibe.
+  // Una palabra igual a la predeterminada tampoco se guarda.
+  const porDefecto = asignacionDe(tipo);
+  if (limpios.asignacion.nombre === porDefecto.nombre && limpios.asignacion.femenino === porDefecto.femenino) {
+    limpios.asignacion = SIN_ASIGNACION;
+  }
   for (const [id, fila] of Object.entries(limpios.modulos) as [ModuloId, Partial<TextosModulo>][]) {
-    const base = predeterminados(tipo, id);
+    const base = predeterminados(tipo, id, limpios.asignacion);
     for (const campo of Object.keys(fila) as CampoTexto[]) {
       if (fila[campo] === base[campo] || (campo === "titulo" && SIN_TITULO.includes(id))) delete fila[campo];
     }
@@ -114,13 +151,15 @@ export function normalizarTextos(valor: unknown, tipo: Evento["tipo"]): string {
   }
   if (limpios.saludo === INICIO_PREDETERMINADO.saludo) limpios.saludo = "";
   if (limpios.durante === INICIO_PREDETERMINADO.durante) limpios.durante = "";
+  if (!limpios.asignacion.nombre) delete (limpios as Partial<Textos>).asignacion;
   return JSON.stringify(limpios);
 }
 
 /** Los tres textos del módulo, con lo propio del evento encima de lo predeterminado. */
 export function textosModulo(evento: DatosEvento, id: ModuloId): TextosModulo {
-  const propios = leerTextos(evento.textos).modulos[id] ?? {};
-  const base = predeterminados(evento.tipo, id);
+  const guardados = leerTextos(evento.textos);
+  const propios = guardados.modulos[id] ?? {};
+  const base = predeterminados(evento.tipo, id, guardados.asignacion);
   return {
     titulo: propios.titulo || base.titulo,
     tarjeta: propios.tarjeta || base.tarjeta,
@@ -139,4 +178,9 @@ export function textosInicio(evento: DatosEvento): TextosInicio {
     saludo: propios.saludo || INICIO_PREDETERMINADO.saludo,
     durante: propios.durante || INICIO_PREDETERMINADO.durante,
   };
+}
+
+/** La palabra del módulo Sector de este evento ("mesa", "sector", "sala"…). */
+export function asignacionEvento(evento: DatosEvento): Asignacion {
+  return asignacionDe(evento.tipo, leerTextos(evento.textos).asignacion);
 }

@@ -273,6 +273,27 @@ try {
   assert.deepEqual(JSON.parse(conDefault.textos).modulos, {});
   paso('Textos editables por módulo y del inicio');
 
+  // ---------------------------------------------------------- palabra de la asignación
+  // Otra palabra que "sector" se cobra: la pone la clave maestra.
+  await expected(await request(api, json({ textos: { modulos: {} } }, 'PATCH'), admin), 200);
+  let conSala = await (await expected(await request(api, json({ textos: { modulos: {}, asignacion: { nombre: '  Sala ', femenino: true } } }, 'PATCH'), admin), 200)).json();
+  assert.deepEqual(JSON.parse(conSala.textos).asignacion, { nombre: 'sala', femenino: true });
+  contiene(await (await expected(await request(`/${slug}`), 200)).text(), 'Busca tu sala', 'inicio con sala');
+  // Con la clave del evento se puede editar el resto, pero la palabra queda.
+  await expected(await request(api, json({ clave: 'prueba-sala-123' }, 'PATCH'), admin), 200);
+  const loginOrg = await expected(await request('/api/admin/login', json({ password: 'prueba-sala-123', slug })), 200);
+  const org = loginOrg.headers.get('set-cookie').split(';')[0];
+  conSala = await (await expected(await request(api, json({ textos: { saludo: 'Hola', modulos: {}, asignacion: { nombre: 'stand', femenino: false } } }, 'PATCH'), org), 200)).json();
+  assert.deepEqual(JSON.parse(conSala.textos).asignacion, { nombre: 'sala', femenino: true }, 'la clave del evento no cambia la palabra');
+  conSala = await (await expected(await request(api, json({ textos: { saludo: 'Hola', modulos: {} } }, 'PATCH'), org), 200)).json();
+  assert.deepEqual(JSON.parse(conSala.textos).asignacion, { nombre: 'sala', femenino: true }, 'ni la borra al guardar otros textos');
+  // La predeterminada no se guarda, y una sigla mantiene sus mayúsculas.
+  const sinPalabra = await (await expected(await request(api, json({ textos: { modulos: {}, asignacion: { nombre: 'Sector', femenino: false } } }, 'PATCH'), admin), 200)).json();
+  assert.equal(JSON.parse(sinPalabra.textos).asignacion, undefined);
+  const sigla = await (await expected(await request(api, json({ textos: { modulos: {}, asignacion: { nombre: 'VIP', femenino: false } } }, 'PATCH'), admin), 200)).json();
+  assert.deepEqual(JSON.parse(sigla.textos).asignacion, { nombre: 'VIP', femenino: false });
+  paso('Palabra de la asignación: solo la clave maestra la cambia');
+
   console.log('Quick wins OK');
 } finally {
   if (slug) {
